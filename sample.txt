@@ -1,0 +1,1 @@
+python experiment.py  --dataset xsum --data_generator_llm gpt-3.5-turbo --embedding_llm opt-2.7b --detector fdgpt --device cuda:0 --aux_device cuda:0 
