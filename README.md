@@ -32,7 +32,7 @@ pip install -r requirements.txt
 
 
 #### LLM Detection
-`python main_experiment.py --task llm_detection`
+`python experiment.py --task llm_detection `
 
 ### Constrained Generation 
 We use GPT-3.5-turbo to generate substitute candidates. From the substitution candidates, we choose the one that is part-of-speech consistent with the original text and decreases the LLM detection score against the target detector the most. The target detector can be specified by `--detector` in the command:
@@ -41,7 +41,6 @@ We use GPT-3.5-turbo to generate substitute candidates. From the substitution ca
 
 ### Adversarial Training
 
-We show 
 
 ## Datasets
-We evaluated our framework on four datasets: [XSum](https://aclanthology.org/D18-1206.pdf), [SQuAD](https://aclanthology.org/D16-1264.pdf), and [Abstract](https://arxiv.org/pdf/2401.12970). We used [Bao et al.](https://github.com/baoguangsheng/fast-detect-gpt/tree/main/exp_main/data)'s versions of LLM-generated texts for XSum and SQuAD, and follow the same steps as them and DetectGPT to generate LLM-generated texts for Abstract. All datasets used can be found in the `./datasets` directory.
+We evaluated our framework on three datasets: [XSum](https://aclanthology.org/D18-1206.pdf), [SQuAD](https://aclanthology.org/D16-1264.pdf), and [Abstract](https://arxiv.org/pdf/2401.12970). We used [Bao et al.](https://github.com/baoguangsheng/fast-detect-gpt/tree/main/exp_main/data)'s versions of LLM-generated texts for XSum and SQuAD, and follow the same steps as them and DetectGPT to generate LLM-generated texts for Abstract. All datasets used can be found in the `./datasets` directory.
