@@ -14,8 +14,8 @@ from gensim.models import KeyedVectors
 from metrics.auroc import AUROC
 
 
-from detectors.fast_detect_gpt_henry import Fast_Detect_GPT
-from detectors.detect_gpt_henry import Detect_GPT
+from detectors.fast_detect_gpt import Fast_Detect_GPT
+from detectors.detect_gpt import Detect_GPT
 from detectors.logprob import LogProbDetector
 from detectors.logrank import LogRankDetector
 from detectors.ghostbuster import Ghostbuster
@@ -55,7 +55,7 @@ def load_dataset(args):
 
 def get_args():
     parser = argparse.ArgumentParser(description="A simple command-line argument example.")
-    parser.add_argument('--dataset', choices=['squad','xsum','writing','abstract'])
+    parser.add_argument('--dataset', choices=['squad','xsum','abstract'])
     parser.add_argument('--dipper', action='store_true')
     parser.add_argument('--data_generator_llm', choices=['gpt-3.5-turbo', 'davinci'], default='gpt-3.5-turbo')
     parser.add_argument('--detector', choices=['fdgpt', 'logrank', 'logprob', 'dgpt', 'ghostbuster'])
