@@ -36,7 +36,7 @@ If you want to use Google News word embeddings for word substitution instead of 
 
 ## Demo
 
-Run `python demo.py` to see a Streamlit demo of RAFT. You will need to provide your own OpenAI API key.
+Run `streamlit run demo.py` to see a Streamlit demo of RAFT. You will need to provide your own OpenAI API key.
 
 ## Attacks
 
