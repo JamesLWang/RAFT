@@ -10,7 +10,7 @@ def GPT_self_prompt(prompt_str, content_to_be_detected):
                     model="gpt-3.5-turbo",
                     messages=[
                         {
-                            "role": "user", 
+                            "role": "user",
                             "content": f"{prompt_str}: {content_to_be_detected}",
                         }
                     ]

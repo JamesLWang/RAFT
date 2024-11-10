@@ -167,7 +167,7 @@ class Detect_GPT(Detector):
             tokenized = scoring_tokenizer(text, return_tensors="pt", return_token_type_ids=False).to(self.device0)
             labels = tokenized.input_ids
             return -scoring_model(**tokenized, labels=labels).loss.item()
-        
+
     def get_mask_ll(self, text, indexes):
         with torch.no_grad():
             tokenized = self.scoring_tokenizer(text, return_tensors="pt", return_token_type_ids=False).to(self.device0)
@@ -190,7 +190,7 @@ class Detect_GPT(Detector):
         # generate perturb samples
         p_original_text = self.perturb_texts(self.mask_model, self.mask_tokenizer, [original_text for _ in range(n_perturbations)])
         assert len(p_original_text) == n_perturbations, f"Expected {n_perturbations} perturbed samples, got {len(p_original_text)}"
-        
+
         return original_text, p_original_text
 
     def get_tokens(self, query: str):
@@ -199,7 +199,7 @@ class Detect_GPT(Detector):
         tokens_id = tokens_id[:self.scoring_tokenizer.model_max_length - 2]
         tokens_id = [self.scoring_tokenizer.bos_token_id] + tokens_id + [self.scoring_tokenizer.eos_token_id]
         tokens = self.scoring_tokenizer.convert_ids_to_tokens(tokens_id)
-        
+
         return tokens
 
     def experiment(self, query):
@@ -222,7 +222,7 @@ class Detect_GPT(Detector):
         human_likelihood = 1 - llm_likelihood
 
         return llm_likelihood, human_likelihood, prediction
-    
+
     def llm_likelihood(self, query):
         return self.experiment(query)[0]
 
@@ -231,7 +231,7 @@ class Detect_GPT(Detector):
 
     def crit(self, query):
         return self.experiment(query)[2]
-    
+
 # detect_gpt = Detect_GPT("./exp_main/results/*perturbation_100.json", 0.3, 1.0, 2, 10, "gpt2-xl", "t5-3b")
 
 # original = "In 1954, major Serbian and Croatian writers, linguists and literary critics, backed by Matica srpska and Matica In 1954, a group of prominent Serbian and Croatian writers, linguists, and literary critics, led by Matica srpska and Matica hrvatska, launched a controversial campaign aimed at standardizing the Serbo-Croatian language. The campaign sought to unify the Bosnian, Croatian, and Serbian languages into a single, standardized form, in an effort to promote national unity and cultural identity in the region. This move was met with resistance from some quarters, with activists and scholars arguing that the proposed standard was too heavily influenced by Serbian, and that it would result in the loss of unique regional variations and cultural identities. Despite these objections, the standard was ultimately adopted, and it remains the basis for the Serbian, Croatian, and Bosnian languages today."

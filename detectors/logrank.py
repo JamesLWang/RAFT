@@ -27,7 +27,7 @@ class LogRankDetector:
     def __init__(self,
                  model_name='EleutherAI/gpt-neo-2.7B',
                  device='cuda'):
-    
+
         self.device = device
         self.precision = torch.float16 if torch.cuda.is_available() else torch.float32
         self.model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=self.precision).to(self.device)
@@ -45,7 +45,7 @@ class LogRankDetector:
 
     def crit(self, query: str, indexes=None):
         return self.llm_likelihood(query, indexes=indexes)
-    
+
 # detector = LogRankDetector()
 # original_text = "A little girl helps her neighbor overcome his vow of silence he made after his wife passed away 40 years ago. I've lived next door to Mr. Reynolds for as long as I can remember, but I never truly knew him until now. It all started when my daughter, Lily, noticed Mr. Reynolds sitting alone on his porch, staring into the distance. Curiosity piqued, she decided to introduce herself and offer him a drawing she had made. Day after day, she would bring him a new creation, her vibrant imagination bridging the gap between two seemingly disconnected souls. Slowly but surely, a smile started to appear on Mr. Reynolds' face, and his eyes began to regain their spark. Lily's innocence and purity of heart gently nudged him out of his self-imposed isolation. The silence that had shrouded him for decades began to dissolve. Through her persistent acts of kindness, Lily not only helped Mr. Reynolds find his voice again, but she also taught"
 # print(detector.llm_likelihood(original_text))

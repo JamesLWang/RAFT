@@ -40,7 +40,7 @@ class Fast_Detect_GPT(Detector):
             vocab_size = min(logits_ref.size(-1), logits_score.size(-1))
             logits_ref = logits_ref[:, :, :vocab_size]
             logits_score = logits_score[:, :, :vocab_size]
-    
+
         labels = labels.unsqueeze(-1) if labels.ndim == logits_score.ndim - 1 else labels
         lprobs_score = torch.log_softmax(logits_score, dim=-1)
         probs_ref = torch.softmax(logits_ref, dim=-1)
@@ -57,9 +57,9 @@ class Fast_Detect_GPT(Detector):
         for i in input:
             token = self.scoring_tokenizer.convert_ids_to_tokens(i)
             output.append(token)
-    
+
         return output[0]
-    
+
     # def get_mask_ll(self, query, indexes=None):
     #     with torch.no_grad():
     #         tokenized = self.scoring_tokenizer(query, return_tensors="pt", padding=True, return_token_type_ids=False).to(self.device)
@@ -70,7 +70,7 @@ class Fast_Detect_GPT(Detector):
     #                 mask[0][i] = 1 if i in indexes else 0
     #             tokenized["attention_mask"] = mask.to(self.device)
     #         return - self.scoring_model(**tokenized, labels=labels).loss.item()
-    
+
     # run local inference
     def run(self, query, indexes=None):
         # evaluate query
@@ -107,7 +107,7 @@ class Fast_Detect_GPT(Detector):
 
 if __name__ == "__main__":
     fast_detect_gpt = Fast_Detect_GPT("gpt2-xl", "gpt2-xl", "xsum", "exp_main/results/*sampling_discrepancy.json")
-    
+
     original = "Hello and welcome to Morgan Stanley’s Investment Community Group. My name is Mike Wilson and I am Morgan Stanley’s Chief U.S. Equity Strategist and Chief Investment Officer. As Chief Investment Officer and Chairman of the Global Investment Committee, I am currently responsible for the economic and statistical analysis of Morgan Stanley’s portfolio data, asset prices and global economic megatrends. To celebrate the 27th anniversary of the new Morgan Stanley Investment Group, we’re bringing you a two-month sharing of investment knowledge and tips from the WhatsApp Group. While everyone is here to profit, I hope you will share Morgan Stanley Group with your friends and join our brokerage team. As a global investment firm, we work together to create long-term value for investors, companies, shareholders, individuals and communities Those who like to invest or want to optimize the allocation of resources to grow their existing wealth, our team of analysts can help you Join us now and get an initial margin worth 200USDT when you register your trading account"
-    
+
     print(fast_detect_gpt.llm_likelihood(original))

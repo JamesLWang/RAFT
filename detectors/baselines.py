@@ -81,22 +81,22 @@ class Baselines:
     def run(self, query):
         tokenized = self.scoring_tokenizer(query, return_tensors="pt", padding=True, return_token_type_ids=False).to(self.device)
         labels = tokenized.input_ids[:, 1:]
-    
+
         with torch.no_grad():
             logits = self.scoring_model(**tokenized).logits[:, :-1]
             crit = self.criterion_fn(logits, labels)
-    
+
         llm_likelihood = self.prob_estimator.crit_to_prob(crit)
         human_likelihood = 1 - llm_likelihood
-    
+
         return llm_likelihood, human_likelihood, crit
-    
+
     def llm_likelihood(self, query):
         return self.run(query)[0]
-    
+
     def human_likelihood(self, query):
         return self.run(query)[1]
-    
+
     def crit(self, query: str):
         return self.run(query)[2]
 

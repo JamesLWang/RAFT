@@ -21,28 +21,28 @@ class GPT2RobertaDetector(Detector):
         self.model.to(self.device)
         self.model.eval()
         print("%s detector model loaded on %s" % (model_name, device))
-    
+
     def get_tokens(self, query: str):
         # Find the token indexes of a word to make attention mask
         tokens_id = self.tokenizer.encode(query)
         tokens_id = tokens_id[:self.tokenizer.model_max_length - 2]
         tokens_id = [self.tokenizer.bos_token_id] + tokens_id + [self.tokenizer.eos_token_id]
         tokens = self.tokenizer.convert_ids_to_tokens(tokens_id)
-        
+
         return tokens
-    
+
     def _calculate_likelihood(self, query: str, indexes: any):
         tokens = self.tokenizer.encode(query)
         tokens = tokens[:self.tokenizer.model_max_length - 2]
         tokens = torch.tensor([self.tokenizer.bos_token_id] + tokens + [self.tokenizer.eos_token_id]).unsqueeze(0)
-        
+
         if indexes:
             mask = torch.ones_like(tokens)
             for i in range(len(mask[0])):
                 mask[0][i] = 0 if i in indexes else 1
         else:
             mask = torch.ones_like(tokens)
-        
+
         with torch.no_grad():
             logits = self.model(tokens.to(self.device), attention_mask=mask.to(self.device))[0]
             probs = logits.softmax(dim=-1)
@@ -55,6 +55,6 @@ class GPT2RobertaDetector(Detector):
 
     def human_likelihood(self, query: str, indexes=None):
         return self._calculate_likelihood(query, indexes)[1]
-    
+
     def crit(self, query):
         return self.llm_likelihood(query)

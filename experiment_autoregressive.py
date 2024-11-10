@@ -53,7 +53,7 @@ def predict_words(paragraph, top_k):
     query = f"""Given some input paragraph, we have highlighted a word using brackets. List {top_k} alternative words for it that ensure grammar correctness and semantic fluency. Output words only.\n{paragraph}"""
     output = generate_text(query)
     predicted_words = re.findall(r'\b[a-zA-Z]+\b', output)
-    
+
     if(type(predicted_words) == list):
         return predicted_words
     if len(predicted_words) == top_k:
@@ -80,15 +80,15 @@ def are_same_pos(word1, word2):
     pos1 = get_pos(word1)
     pos2 = get_pos(word2)
     return pos1 == pos2
-    
-    
+
+
 def load_json_file(file_path):
     if os.path.exists(file_path):
         with open(file_path, 'r') as file:
             return json.load(file)
     else:
         raise FileNotFoundError(f"The file '{file_path}' does not exist.")
-        
+
 def remove_punctuation(text):
     return re.sub(r'[^\w\s]', '', text)
 
@@ -101,7 +101,7 @@ def flatten(lst):
             flattened_list.append(item)
     return flattened_list
 
-class Experiment:    
+class Experiment:
     def __init__(self, dataset, data_generator_llm, embedding_llm,  output_path, device, mask_pct, dataset_dir, detector, device_aux=None):
         self.dataset = dataset
         self.data_generator_llm = data_generator_llm
@@ -114,7 +114,7 @@ class Experiment:
         self.detector = args.detector
         self.device_aux = device_aux
         self.detector_model = None
-        
+
     def get_top_similar_words(self,word, n=15):
         try:
             similar_words = self.word_vectors.most_similar(word, topn=n)
@@ -122,7 +122,7 @@ class Experiment:
         except (KeyError, AttributeError):
             print(f"'{word}' is not in the vocabulary.")
             return []
-        
+
     def load_dataset(self):
         if self.dataset not in ['xsum','squad','writing','abstract']:
             raise ValueError("Selected Dataset is invalid. Valid choices: 'xsum','squad','writing','abstract'")
@@ -134,7 +134,7 @@ class Experiment:
             print(f"Dataset {self.dataset} generated with {self.data_generator_llm} loaded successfully!")
         else:
             raise ValueError(f"Data filepath {file_name} does not exist")
-    
+
     def load_embedding_llm(self):
         embedding_dict = {
             'gpt2': 'gpt2',
@@ -155,15 +155,15 @@ class Experiment:
                 self.embedding_llm_tokenizer = AutoTokenizer.from_pretrained(self.embedding_llm, torch_dtype=torch.float16)
             else:
                 self.embedding_llm_tokenizer = AutoTokenizer.from_pretrained(self.embedding_llm, torch_dtype=torch.float16)
-            
+
             self.embedding_llm_model = AutoModelForCausalLM.from_pretrained(self.embedding_llm, torch_dtype=torch.float16)
-            
+
         if self.device != 'cpu':
             self.embedding_llm_model.to(self.device)
             print(f"{self.embedding_llm} model pushed to {self.device}")
-        
+
         print(f"{self.embedding_llm} model and tokenizer loaded successfully!")
-                                      
+
     def create_experiment(self):
         current_date = datetime.datetime.now()
         formatted_date = current_date.strftime("%Y-%m-%d")
@@ -174,7 +174,7 @@ class Experiment:
 
         print(f"Experiment Name: {self.experiment_name}")
         print(f"Saving Experiment information to {self.experiment_path}")
-        
+
         self.config = {
             "dataset": self.dataset,
             "data_generator_llm": self.data_generator_llm,
@@ -183,21 +183,21 @@ class Experiment:
             "mask_pct": self.mask_pct,
             "timestamp_created": str(current_date)
         }
-        
+
         with open(os.path.join(self.experiment_path, 'config.json'), 'w') as f:
             json.dump(self.config, f)
-            
+
         self.res_list = []
         self.result_stats, self.original_stats = defaultdict(list),defaultdict(list)
         print("Experiment setup successfully. Begin data generation")
-    
-    
+
+
     def load_detector(self):
         detector_cuda = self.device
         detector_cuda_aux = self.device_aux
         if self.detector == 'dgpt':
             self.detector_model = Detect_GPT("./detectors/*sampling_discrepancy.json",0.3, 1.0, 2, 10, "gpt2-xl", "t5-3b", device0=detector_cuda_aux, device1=detector_cuda_aux)
-        elif self.detector == 'fdgpt': 
+        elif self.detector == 'fdgpt':
             self.detector_model = Fast_Detect_GPT("gpt2-xl", "gpt2-xl", "xsum", "./detectors/*sampling_discrepancy.json", detector_cuda_aux)
         elif self.detector == 'ghostbuster':
             self.detector_model = Ghostbuster()
@@ -209,10 +209,10 @@ class Experiment:
             self.detector_model = GPT2RobertaDetector(device=detector_cuda_aux)
         else:
             raise ValueError("Incorrect self.detector value")
-            
+
         print("Done")
         print(f"{self.detector} loaded successfully on {detector_cuda_aux}")
-            
+
     def generate_data(self):
         n_samples = len(self.data['sampled'])
         original, result = [], []
@@ -222,7 +222,7 @@ class Experiment:
             words = paragraph.split()
             len_paragraph = len(words)
             ranks = {}
-            
+
             tokens_id = self.embedding_llm_tokenizer.encode(paragraph,add_special_tokens=True)
             logits = self.embedding_llm_model(torch.tensor(tokens_id).unsqueeze(0).to(self.device)).logits
             probs = torch.nn.functional.softmax(logits, dim=-1)
@@ -230,13 +230,13 @@ class Experiment:
             for i in range(1, len(probs[0])):
                 token_id = tokens_id[i]
                 ranks.append((i, token_id, self.embedding_llm_tokenizer.convert_ids_to_tokens(token_id), probs[0][i-1][token_id].item())) # append as (token position, token id, token, token_prob)
-                
-                
+
+
             ranks.sort(key=lambda x: x[3])
             percent_masked = self.mask_pct
             num_masks = int(len(probs[0]) * percent_masked)
             ranks_filter = list(filter(lambda x: "Ġ" in x[2], ranks))
-            
+
             ctr = 0
             candidates = []
             while ctr < num_masks:
@@ -244,19 +244,19 @@ class Experiment:
                 # similar_words = self.get_top_similar_words(self.embedding_llm_tokenizer.decode(token_id).strip())
                 candidates.append((token_pos, token_id, token, prob))
                 ctr += 1
-                
+
             changes = 0
             best_words = []
             for candidate in candidates:
                 token_pos, token_id, token, prob  = candidate
                 word = self.embedding_llm_tokenizer.decode(token_id).strip()
                 min_score, best_word = self.detector_model.crit(paragraph), word
-                
+
                 word_to_replace = self.embedding_llm_tokenizer.decode(tokens_id[token_pos]).strip()
                 # print(f'Word to replace: {word_to_replace}')
                 paragraph_query = self.embedding_llm_tokenizer.decode(flatten(tokens_id[:token_pos])) + f'[{self.embedding_llm_tokenizer.decode(tokens_id[token_pos]).strip()}]' + self.embedding_llm_tokenizer.decode(flatten(tokens_id[token_pos+1:]))
-                
-                similar_words = predict_words(paragraph_query, 15) 
+
+                similar_words = predict_words(paragraph_query, 15)
                 # print(f'Returned candidate words: {similar_words}')
                 for similar_word in similar_words:
                     if are_same_pos(word_to_replace, similar_word):
@@ -281,11 +281,11 @@ class Experiment:
                     # print(f"Replaced token at {token_pos} with value of {token} to {best_word[0]}. New token value: {tokens_id[token_pos]} | Old Value: {old_val}")
 
             print(f"Changes made: {changes}")
-            
+
             original.append(paragraph)
             result.append(self.embedding_llm_tokenizer.decode(flatten(tokens_id)))
-            
-            
+
+
 
             res_json = {
                 "original": original[-1],
@@ -297,7 +297,7 @@ class Experiment:
                 "sampled_detector_likelihood": self.detector_model.crit(result[-1]),
                 "mask_pct": self.mask_pct
             }
-            
+
             self.res_list.append(res_json)
 
             save_path = os.path.join(self.experiment_path, f"results_{index}_{self.detector}.json")
@@ -309,7 +309,7 @@ class Experiment:
 
             with open(os.path.join(self.experiment_path, "results.json"), 'w') as result_file:
                 json.dump(result_json, result_file)
-                
+
     def get_auroc(self):
         experiment_files = sorted(glob.glob(os.path.join("experiments", self.experiment_name, "results_*.json")))
         print(len(experiment_files))
@@ -327,9 +327,9 @@ class Experiment:
         save_path = os.path.join(self.experiment_path, "auroc.json")
         with open(save_path, 'w') as output_file:
             json.dump(auroc, output_file)
-                
+
         print(auroc)
-    
+
     def run(self):
         self.load_dataset()
         self.load_embedding_llm()
@@ -337,7 +337,7 @@ class Experiment:
         self.create_experiment()
         self.generate_data()
         self.get_auroc()
-        
+
 def get_args():
     parser = argparse.ArgumentParser(description="A simple command-line argument example.")
     parser.add_argument('--dataset', choices=['squad','xsum','writing','abstract'])
@@ -357,5 +357,4 @@ if __name__ == "__main__":
     print(args)
     experiment = Experiment(args.dataset, args.data_generator_llm, args.embedding_llm, args.output_path, args.device, args.mask_pct, args.dataset_dir, args.detector, args.aux_device)
     experiment.run()
-    
-    
+

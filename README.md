@@ -34,6 +34,10 @@ Fine-tuned `roberta-large` model (1.5 GB) for detector-based proxy model:
 
 If you want to use Google News word embeddings for word substitution instead of ChatGPT, download the file `GoogleNews-vectors-negative300.bin.gz` from [here](https://code.google.com/archive/p/word2vec/) and put it in the `./assets` directory.
 
+## Demo
+
+Run `python demo.py` to see a Streamlit demo of RAFT. You will need to provide your own OpenAI API key.
+
 ## Attacks
 
 ### Proxy Tasks

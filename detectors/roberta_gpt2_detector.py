@@ -27,21 +27,21 @@ class GPT2RobertaDetector(Detector):
         tokens_id = tokens_id[:self.tokenizer.model_max_length - 2]
         tokens_id = [self.tokenizer.bos_token_id] + tokens_id + [self.tokenizer.eos_token_id]
         tokens = self.tokenizer.convert_ids_to_tokens(tokens_id)
-        
+
         return tokens
-    
+
     def _calculate_likelihood(self, query: str, indexes: any):
         tokens = self.tokenizer.encode(query)
         tokens = tokens[:self.tokenizer.model_max_length - 2]
         tokens = torch.tensor([self.tokenizer.bos_token_id] + tokens + [self.tokenizer.eos_token_id]).unsqueeze(0)
-        
+
         if indexes:
             mask = torch.zeros_like(tokens)
             for i in range(len(mask[0])):
                 mask[0][i] = 1 if i in indexes else 0.5
         else:
             mask = torch.ones_like(tokens)
-        
+
         with torch.no_grad():
             logits = self.model(tokens.to(self.device), attention_mask=mask.to(self.device))[0]
             probs = logits.softmax(dim=-1)
@@ -54,6 +54,6 @@ class GPT2RobertaDetector(Detector):
 
     def human_likelihood(self, query: str, indexes=None):
         return self._calculate_likelihood(query, indexes)[1]
-    
+
     def crit(self, query):
         return self.llm_likelihood(query)

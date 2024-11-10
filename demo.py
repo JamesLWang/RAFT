@@ -1,5 +1,5 @@
 import streamlit as st
-import time 
+import time
 import re
 import nltk
 from nltk.tokenize import word_tokenize
@@ -20,7 +20,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 torch.manual_seed(42)
 if torch.cuda.is_available():
     torch.cuda.manual_seed_all(42)
-    
+
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 PRECISION = torch.float16 if torch.cuda.is_available() else torch.float32
 
@@ -58,14 +58,11 @@ def are_same_pos(word1, word2):
     return pos1 == pos2
 
 def openai_backoff(**kwargs):
-    return client.chat.completions.create(**kwargs)
-
     retries, wait_time = 0, 10
     while retries < 10:
         try:
-            openai.api_key = openai_key
-            return openai.ChatCompletion.create(**kwargs)
-        except:
+            return client.chat.completions.create(**kwargs)
+        except Exception:
             print(f"Waiting for {wait_time} seconds")
             time.sleep(wait_time)
             wait_time *= 2
@@ -100,40 +97,6 @@ def flatten(lst):
             flattened_list.append(item)
     return flattened_list
 
-# embedding_llm_model_dict = {
-#     'roberta-base': GPT2RobertaDetectorBase(),
-#     'roberta-large': GPT2RobertaDetectorLarge(),
-#     'gpt2': GPT2LMHeadModel.from_pretrained('gpt2'),
-#     'opt-2.7b': AutoModelForCausalLM.from_pretrained('facebook/opt-2.7b', torch_dtype=torch.float16),
-#     'neo-2.7b': AutoModelForCausalLM.from_pretrained('EleutherAI/gpt-neo-2.7B', torch_dtype=torch.float16),
-#     'gpt-j-6b': AutoModelForCausalLM.from_pretrained('EleutherAI/gpt-j-6b', torch_dtype=torch.float16)
-# }
-
-# embedding_llm_tokenizer_dict = {
-#     'gpt2': GPT2Tokenizer.from_pretrained('gpt2'),
-#     'opt-2.7b': AutoTokenizer.from_pretrained('facebook/opt-2.7b', torch_dtype=torch.float16),
-#     'neo-2.7b': AutoTokenizer.from_pretrained('EleutherAI/gpt-neo-2.7B', torch_dtype=torch.float16),
-#     'gpt-j-6b': AutoTokenizer.from_pretrained('EleutherAI/gpt-j-6b', torch_dtype=torch.float16)
-# }
-
-# @st.cache_resource  # Caches the model loading to avoid re-initialization
-# def load_embedding_llm_model():
-#     print("PLACEHOLDER USED")
-#     return GPT2LMHeadModel.from_pretrained('gpt2')
-
-# @st.cache_resource  # Caches the model loading to avoid re-initialization
-# def load_embedding_llm_tokenizer():
-#     print("PLACEHOLDER USED")
-#     return GPT2Tokenizer.from_pretrained('gpt2')
-
-# Initialize and cache the LogRank detector
-# with st.spinner("Initializing Application..."):
-#     detector_model_logrank = load_logrank_detector()
-#     embedding_llm_model = load_embedding_llm_model()
-#     embedding_llm_tokenizer = load_embedding_llm_tokenizer()
-#     print("LOGRANK DETECTOR LOADED")
-# END To delete
-
 @st.cache_resource
 def load_gpt2_embedding_llm():
     return {
@@ -155,7 +118,7 @@ def load_neo_27b_embedding_llm():
         'tokenizer': AutoTokenizer.from_pretrained('EleutherAI/gpt-neo-2.7B', torch_dtype=PRECISION)
     }
 
-@st.cache_resource  
+@st.cache_resource
 def load_gpt_j_6b_embedding_llm():
     return {
         'model': AutoModelForCausalLM.from_pretrained('EleutherAI/gpt-j-6b', torch_dtype=PRECISION),
@@ -260,68 +223,53 @@ def load_test_detector(test_detector_choice):
 
 st.sidebar.title("Configuration")
 
-# `--text` input
 text_input = st.sidebar.text_area("Text", "", height=200)
-
-# `--proxy` choice input
 proxy_choice = st.sidebar.selectbox("Proxy", ["detection", "generation"])
 
-# Conditional `--embedding_llm` choices based on `proxy_choice`
 if proxy_choice == "detection":
     embedding_options = ["roberta-base", "roberta-large"]
 else:
     embedding_options = ["gpt2", "opt-2.7b", "neo-2.7b", "gpt-j-6b"]
 
 embedding_llm_choice = st.sidebar.selectbox("Embedding LLM", embedding_options)
-
-# `--detector` choice input
 detector_choice = st.sidebar.selectbox(
-    "Target Detector", 
+    "Target Detector",
     ["logprob", "logrank", "dgpt", "fdgpt", "ghostbuster", "GPT-2 Detector (roberta-base)", "GPT-2 Detector (roberta-large)"]
 )
-
 test_detector_choice = st.sidebar.selectbox(
-    "Test Detector", 
+    "Test Detector",
     ["logprob", "logrank", "dgpt", "fdgpt", "ghostbuster", "GPT-2 Detector (roberta-base)", "GPT-2 Detector (roberta-large)"]
 )
 
-# `--mask_pct` slider input
 mask_pct = st.sidebar.slider("Mask Percentage", 0.0, 1.0, 0.1)
 
 openai_key = st.sidebar.text_input("OpenAI Key", "")
-
 client = OpenAI(api_key=openai_key)
 
-# Main panel placeholder text before "Run" is pressed
 st.write("### _RAFT_ Demo")
 st.write("Please configure the settings in the sidebar and press 'Run' to process the inputs.")
-
 if st.sidebar.button("Run"):
     st.write("### RAFT Attack Output")
-
     with st.expander("User Input Parameters", expanded=True):
         st.write(f"**Text:** {text_input}")
         st.write(f"**Proxy:** {proxy_choice}")
         st.write(f"**Embedding LLM:** {embedding_llm_choice}")
         st.write(f"**Detector:** {detector_choice}")
         st.write(f"**Mask Percentage:** {mask_pct}")
-
     with st.spinner("Initializing Dependencies..."):
         text_placeholder = st.empty()
 
         text_placeholder.write(f"Loading {embedding_llm_choice}...")
         embedding_llm_model, embedding_llm_tokenizer = load_embedding_llm_model(embedding_llm_choice)
-        
+
         text_placeholder.write(f"Loading {detector_choice}...")
         target_detector = load_target_detector(detector_choice) # NOT IMPLEMENTED
-        
+
         text_placeholder.write(f"Loading {test_detector_choice}...")
         if test_detector_choice == detector_choice:
             test_detector = target_detector
         else:
             test_detector = load_test_detector(test_detector_choice) # NOT IMPLEMENTED
-        
-
         text_placeholder.empty()
     st.write("### RAFT Attack Output")
 
@@ -341,7 +289,7 @@ if st.sidebar.button("Run"):
         len_paragraph = len(words)
         ranks = {}
 
-        if proxy_choice == "detection":    
+        if proxy_choice == "detection":
             words_original = words.copy()
             for i in range(len_paragraph):
                 paragraph_new = ' '.join(words[:i] + ['=', words[i], '='] + words[i+1:])
@@ -360,7 +308,7 @@ if st.sidebar.button("Run"):
             st.write(f"**Proxy Task Model:** {embedding_llm_choice}")
             st.write(f"""Words sorted in ranked order (first word is most likely to be replaced): \n\n `{', '.join(sorted_words)}`""")
             st.write(f"""Word index sorted in ranked order (first index is most likely to be replaced): \n\n `{', '.join(map(str, sorted_keys))}`""")
-        
+
         if proxy_choice == "generation":
             tokens_id = embedding_llm_tokenizer.encode(paragraph,add_special_tokens=True)
             logits = embedding_llm_model(torch.tensor(tokens_id).unsqueeze(0).to(DEVICE)).logits
@@ -372,7 +320,7 @@ if st.sidebar.button("Run"):
             ranks.sort(key=lambda x: x[3])
             percent_masked = mask_pct
             num_masks = int(len(probs[0]) * percent_masked)
-            ranks_filter = list(filter(lambda x: "Ġ" in x[2], ranks))     
+            ranks_filter = list(filter(lambda x: "Ġ" in x[2], ranks))
             for rank_filter in ranks_filter:
                 if rank_filter[2].replace("Ġ", "") == "":
                     ranks_filter.remove(rank_filter)
@@ -408,18 +356,18 @@ if st.sidebar.button("Run"):
                         num_masks -= 1
                         mask_keys.append(key)
                         words[key] = word_best
-                
-                
+
+
                 st.write("**RAFT Attacked Text**")
                 st.markdown(f"<span style='background-color: #ffeb3b'>{' '.join(words)}</span>", unsafe_allow_html=True)
                 new_text = ' '.join(words)
-            
+
             if proxy_choice == "generation":
                 print("TO FIX")
                 ctr = 0
                 candidates = []
                 while ctr < num_masks:
-                    token_pos, token_id, token, prob = ranks_filter.pop()                    
+                    token_pos, token_id, token, prob = ranks_filter.pop()
                     candidates.append((token_pos, token_id, token, prob))
                     ctr += 1
 
@@ -430,11 +378,11 @@ if st.sidebar.button("Run"):
                     token_pos, token_id, token, prob  = candidate
                     word = embedding_llm_tokenizer.decode(token_id).strip()
                     min_score, best_word = target_detector.crit(paragraph), word
-                    
+
                     word_to_replace = embedding_llm_tokenizer.decode(tokens_id[token_pos]).strip()
                     paragraph_query = embedding_llm_tokenizer.decode(flatten(tokens_id[:token_pos])) + f'[{embedding_llm_tokenizer.decode(tokens_id[token_pos]).strip()}]' + embedding_llm_tokenizer.decode(flatten(tokens_id[token_pos+1:]))
-                    
-                    similar_words = predict_words(paragraph_query, 15) 
+
+                    similar_words = predict_words(paragraph_query, 15)
                     for similar_word in similar_words:
                         if are_same_pos(word_to_replace, similar_word):
                             paragraph_temp = embedding_llm_tokenizer.decode(flatten(tokens_id[:token_pos])) + ' ' + similar_word + ' ' + embedding_llm_tokenizer.decode(flatten(tokens_id[token_pos+1:]))
@@ -457,9 +405,7 @@ if st.sidebar.button("Run"):
                 st.markdown(f"<span style='background-color: #ffeb3b'>{' '.join(words)}</span>", unsafe_allow_html=True)
                 new_text = ' '.join(words)
                 words_original = paragraph.split()
-            
-            
-            # Create a diff visualization
+
             diff_html = ""
             for orig, new in zip(words_original, words):
                 if orig != new:
@@ -467,18 +413,15 @@ if st.sidebar.button("Run"):
                     diff_html += f'<span style="background-color: #c1ffc1;">{new}</span> '
                 else:
                     diff_html += orig + " "
-            
+
             st.write("**Original vs Modified Text:**")
             st.markdown(diff_html, unsafe_allow_html=True)
-            
-            # Display a summary of changes
+
             changes = [(orig, new) for orig, new in zip(words_original, words) if orig != new]
             if changes:
                 st.write("**Word Replacements:**")
                 for orig, new in changes:
                     st.write(f"- '{orig}' → '{new}'")
-
-            
 
     placeholder_raft_detection = st.empty()
     with st.spinner("Computing RAFT Attack Detection Probability"):
@@ -489,12 +432,11 @@ if st.sidebar.button("Run"):
 
     original_detection = test_detector.crit(text_input)
     improvement = original_detection - detection_likelihood_raft
-    
+
     if improvement > 0:
         st.markdown(f"**Improvement:** <span style='color: #00aa00'>-{improvement:.4f}</span> (Lower LLM detection likelihood)", unsafe_allow_html=True)
     else:
         st.markdown(f"**Change:** <span style='color: #aa0000'>+{improvement:.4f}</span> (Higher LLM detection likelihood)", unsafe_allow_html=True)
-    
+
     placeholder_raft_detection.write("### RAFT Attack Detection Probability")
 
-                

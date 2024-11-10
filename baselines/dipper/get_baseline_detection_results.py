@@ -21,7 +21,7 @@ def load_json_file(file_path):
             return json.load(file)
     else:
         raise FileNotFoundError(f"The file '{file_path}' does not exist.")
-        
+
 def remove_punctuation(text):
     return re.sub(r'[^\w\s]', '', text)
 
@@ -30,11 +30,11 @@ def load_dataset(args):
         raise ValueError("Selected Dataset is invalid. Valid choices: 'xsum','squad','writing','abstract'")
     if args.data_generator_llm not in ['gpt-3.5-turbo', 'davinci']:
         raise ValueError("Selected Data Generator LLM is invalid. Valid choices: 'gpt-3.5-turbo', 'davinci'")
-        
+
     if args.dipper:
         file_name = os.path.join(args.dataset_dir, args.dataset,f"{args.dataset}_evasion_dipper.json")
         return load_json_file(file_name)
-    
+
     else:
         file_name = os.path.join(args.dataset_dir, args.dataset,f"{args.dataset}_{args.data_generator_llm}.raw_data.json")
         if os.path.exists(file_name):
@@ -44,7 +44,7 @@ def load_dataset(args):
             raise ValueError(f"Data filepath {file_name} does not exist")
 
         pass
-    
+
 
 def get_args():
     parser = argparse.ArgumentParser(description="A simple command-line argument example.")
@@ -77,7 +77,7 @@ if __name__ == "__main__":
     if args.detector == 'ghostbuster':
         print("Detector Used: Ghostbuster")
         detector = Ghostbuster()
-        
+
     results, labels = [], []
     for data_value in tqdm(data['original']):
         if args.detector in ['fdgpt', 'dgpt']:
@@ -86,7 +86,7 @@ if __name__ == "__main__":
             results.append(detector.llm_likelihood(data_value))
         torch.cuda.empty_cache()
         labels.append(0)
-        
+
     if args.dipper:
         for data_value in tqdm(data['evade']):
             print("Running attack...")
@@ -109,7 +109,7 @@ if __name__ == "__main__":
     print(f"Dataset: {args.dataset}")
     print(f"Detector: {args.detector}")
     print(f"AUROC: {auroc}")
-    
+
     res = {
         "evasion": args.dipper,
         "dataset": args.dataset,
@@ -118,13 +118,13 @@ if __name__ == "__main__":
         "results": results,
         "labels": labels
     }
-    
+
     evasion_status = ''
     if args.dipper:
         evasion_status = '_dipper'
-        
+
     with open(os.path.join('./experiments', f'{args.dataset}_{args.detector}{evasion_status}.json'), 'w') as output_file:
         json.dump(res, output_file)
-    
-    
+
+
 

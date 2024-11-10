@@ -18,7 +18,7 @@ class LogProbDetector:
     def __init__(self,
                  model_name='EleutherAI/gpt-neo-2.7B',
                  device='cuda'):
-    
+
         self.precision = torch.float16 if torch.cuda.is_available() else torch.float32
         self.device = device
         self.model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=self.precision).to(self.device)
@@ -43,6 +43,6 @@ class LogProbDetector:
 
         log_likelihood = log_probs.gather(dim=-1, index=labels.unsqueeze(-1)).squeeze(-1)
         return get_likelihood(logits, labels, self.device)
-    
+
     def crit(self, query: str, indexes=None):
         return self.llm_likelihood(query, indexes=indexes)

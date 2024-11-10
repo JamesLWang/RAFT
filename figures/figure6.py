@@ -64,7 +64,7 @@ for ax in axes:
         spine.set_visible(True)
         spine.set_color('black')
         spine.set_linewidth(0.5)
-        
+
 plt.tight_layout()
 plt.savefig("xsum_graphic.pdf",bbox_inches="tight")
 
@@ -130,6 +130,6 @@ for ax in axes:
         spine.set_visible(True)
         spine.set_color('black')
         spine.set_linewidth(0.5)
-        
+
 plt.tight_layout()
 plt.savefig("squad_graphic.pdf",bbox_inches="tight")

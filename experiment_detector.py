@@ -63,23 +63,23 @@ class Experiment:
 
     def filter_punctuation(self, string):
         pattern = r'^[\W_]+|[\W_]+$'
-    
+
         left_punctuation = re.findall(r'^[\W_]+', string)
         right_punctuation = re.findall(r'[\W_]+$', string)
         clean_string = re.sub(pattern, '', string)
-    
+
         return ''.join(left_punctuation), ''.join(right_punctuation), clean_string
 
     def get_pos(self, word):
         tokens = word_tokenize(word)
         tagged = nltk.pos_tag(tokens)
         return tagged[0][1] if tagged else None
-    
+
     def are_same_pos(self, word1, word2):
         pos1 = self.get_pos(word1)
         pos2 = self.get_pos(word2)
         return pos1 == pos2
-    
+
     def generate_text(self, query):
         # response = openai_backoff(
         #                 model="gpt-3.5-turbo",
@@ -87,7 +87,7 @@ class Experiment:
         #             )
         # return response["choices"][0]["message"]["content"]
         return "hello"
-    
+
     def predict_words(self, paragraph, top_k):
         query = f"""Given some input paragraph, we have highlighted a word using brackets. List {top_k} alternative words for it that ensure grammar correctness and semantic fluency. Output words only.\n{paragraph}"""
         output = self.generate_text(query)
@@ -157,7 +157,7 @@ class Experiment:
             results.append(result)
             original_crits.append(original_crit)
             result_crits.append(result_crit)
-            
+
             output_json = {
                 "original": paragraph,
                 "sampled": paragraph_final,
