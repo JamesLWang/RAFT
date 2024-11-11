@@ -17,8 +17,8 @@ class NGramModel:
         self.smoothing_f = alpha * self.vocab_size
 
         self.c = defaultdict(lambda: [0, Counter()])
-        for i in tqdm.tqdm(range(len(train_text)-n)):
-            n_gram = tuple(train_text[i:i+n])
+        for i in tqdm.tqdm(range(len(train_text) - n)):
+            n_gram = tuple(train_text[i : i + n])
             self.c[n_gram[:-1]][1][n_gram[-1]] += 1
             self.c[n_gram[:-1]][0] += 1
         self.n_size = len(self.c)
@@ -26,7 +26,7 @@ class NGramModel:
     def n_gram_probability(self, n_gram):
         assert len(n_gram) == self.n
         it = self.c[tuple(n_gram[:-1])]
-        prob = (it[1][n_gram[-1]] + self.smoothing)/(it[0] + self.smoothing_f)
+        prob = (it[1][n_gram[-1]] + self.smoothing) / (it[0] + self.smoothing_f)
         return prob
 
 
@@ -47,9 +47,11 @@ class DiscountBackoffModel(NGramModel):
         if it[0] == 0:
             return self.lower_order_model.n_gram_probability(n_gram[1:])
 
-        prob = self.discount * \
-            (len(it[1])/it[0]) * \
-            self.lower_order_model.n_gram_probability(n_gram[1:])
+        prob = (
+            self.discount
+            * (len(it[1]) / it[0])
+            * self.lower_order_model.n_gram_probability(n_gram[1:])
+        )
         if it[1][n_gram[-1]] != 0:
             prob += max(it[1][n_gram[-1]] - self.discount, 0) / it[0]
 
@@ -66,7 +68,7 @@ class KneserNeyBaseModel(NGramModel):
 
         base_cnt = defaultdict(set)
         for i in range(1, len(train_text)):
-            base_cnt[train_text[i]].add(train_text[i-1])
+            base_cnt[train_text[i]].add(train_text[i - 1])
 
         cnt = 0
         for word in base_cnt:
@@ -93,10 +95,8 @@ class TrigramBackoff:
 
     def __init__(self, train_text, delta=0.9):
         self.base = KneserNeyBaseModel(train_text)
-        self.bigram = DiscountBackoffModel(
-            train_text, self.base, n=2, delta=delta)
-        self.trigram = DiscountBackoffModel(
-            train_text, self.bigram, n=3, delta=delta)
+        self.bigram = DiscountBackoffModel(train_text, self.base, n=2, delta=delta)
+        self.trigram = DiscountBackoffModel(train_text, self.bigram, n=3, delta=delta)
 
     def n_gram_probability(self, n_gram):
         assert len(n_gram) == 3

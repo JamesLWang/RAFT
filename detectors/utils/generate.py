@@ -29,7 +29,7 @@ def generate_documents(output_dir, prompts, verbose=True, force_regenerate=False
     if verbose:
         print("Generating Articles...")
 
-    for idx, prompt in (enumerate(tqdm.tqdm(prompts)) if verbose else enumerate(prompts)):
+    for idx, prompt in enumerate(tqdm.tqdm(prompts)) if verbose else enumerate(prompts):
         if os.path.exists(f"{output_dir}/{idx}.txt") and not force_regenerate:
             continue
 
@@ -38,7 +38,7 @@ def generate_documents(output_dir, prompts, verbose=True, force_regenerate=False
             messages=[
                 {
                     "role": "user",
-                            "content": prompt,
+                    "content": prompt,
                 }
             ],
         )
@@ -50,16 +50,18 @@ def generate_documents(output_dir, prompts, verbose=True, force_regenerate=False
     if verbose:
         print("Writing logprobs...")
 
-    for idx, prompt in (enumerate(tqdm.tqdm(prompts)) if verbose else enumerate(prompts)):
+    for idx, prompt in enumerate(tqdm.tqdm(prompts)) if verbose else enumerate(prompts):
 
         with open(f"{output_dir}/{idx}.txt") as f:
             doc = f.read().strip()
 
-        if not os.path.exists(f"{output_dir}/logprobs/{idx}-davinci.txt") and not force_regenerate:
-            write_logprobs(
-                doc, f"{output_dir}/logprobs/{idx}-davinci.txt", "davinci"
-            )
-        if not os.path.exists(f"{output_dir}/logprobs/{idx}-ada.txt") and not force_regenerate:
-            write_logprobs(
-                doc, f"{output_dir}/logprobs/{idx}-curie.txt", "ada"
-            )
+        if (
+            not os.path.exists(f"{output_dir}/logprobs/{idx}-davinci.txt")
+            and not force_regenerate
+        ):
+            write_logprobs(doc, f"{output_dir}/logprobs/{idx}-davinci.txt", "davinci")
+        if (
+            not os.path.exists(f"{output_dir}/logprobs/{idx}-ada.txt")
+            and not force_regenerate
+        ):
+            write_logprobs(doc, f"{output_dir}/logprobs/{idx}-curie.txt", "ada")

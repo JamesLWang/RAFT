@@ -27,11 +27,9 @@ def write_logprobs(text, file, model):
     tokens = tokenizer.encode(text)
     doc = tokenizer.decode(tokens[:2047])
 
-    response = client.completions.create(model=model,
-    prompt="<|endoftext|>" + doc,
-    max_tokens=0,
-    echo=True,
-    logprobs=1)
+    response = client.completions.create(
+        model=model, prompt="<|endoftext|>" + doc, max_tokens=0, echo=True, logprobs=1
+    )
 
     subwords = response.choices[0].logprobs.tokens[1:]
     subprobs = response.choices[0].logprobs.token_logprobs[1:]

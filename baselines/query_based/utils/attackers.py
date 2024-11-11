@@ -12,7 +12,7 @@ from transformers import T5Tokenizer, T5ForConditionalGeneration
 class DipperParaphraser(object):
     def __init__(self, model="kalpeshk2011/dipper-paraphraser-xxl", verbose=True):
         time1 = time.time()
-        self.tokenizer = T5Tokenizer.from_pretrained('google/t5-v1_1-xxl')
+        self.tokenizer = T5Tokenizer.from_pretrained("google/t5-v1_1-xxl")
         self.max_memory_mapping = {0: "45GB", 1: "45GB", 2: "45GB"}
         self.model = T5ForConditionalGeneration.from_pretrained(model)
         if verbose:
@@ -21,7 +21,15 @@ class DipperParaphraser(object):
         self.model.to(self.device)
         self.model.eval()
 
-    def paraphrase(self, input_text, lex_diversity, order_diversity, prefix="", sent_interval=3, **kwargs):
+    def paraphrase(
+        self,
+        input_text,
+        lex_diversity,
+        order_diversity,
+        prefix="",
+        sent_interval=3,
+        **kwargs,
+    ):
         """Paraphrase a text using the DIPPER model.
 
         Args:
@@ -30,8 +38,22 @@ class DipperParaphraser(object):
             order_diversity (int): The order diversity of the output, choose multiples of 20 from 0 to 100. 0 means no diversity, 100 means maximum diversity.
             **kwargs: Additional keyword arguments like top_p, top_k, max_length.
         """
-        assert lex_diversity in [0, 20, 40, 60, 80, 100], "Lexical diversity must be one of 0, 20, 40, 60, 80, 100."
-        assert order_diversity in [0, 20, 40, 60, 80, 100], "Order diversity must be one of 0, 20, 40, 60, 80, 100."
+        assert lex_diversity in [
+            0,
+            20,
+            40,
+            60,
+            80,
+            100,
+        ], "Lexical diversity must be one of 0, 20, 40, 60, 80, 100."
+        assert order_diversity in [
+            0,
+            20,
+            40,
+            60,
+            80,
+            100,
+        ], "Order diversity must be one of 0, 20, 40, 60, 80, 100."
 
         lex_code = int(100 - lex_diversity)
         order_code = int(100 - order_diversity)
@@ -42,7 +64,7 @@ class DipperParaphraser(object):
         output_text = ""
 
         for sent_idx in range(0, len(sentences), sent_interval):
-            curr_sent_window = " ".join(sentences[sent_idx:sent_idx + sent_interval])
+            curr_sent_window = " ".join(sentences[sent_idx : sent_idx + sent_interval])
             final_input_text = f"lexical = {lex_code}, order = {order_code}"
             if prefix:
                 final_input_text += f" {prefix}"
@@ -60,9 +82,9 @@ class DipperParaphraser(object):
         return prefix
 
 
-class genetic_attack_agent():
+class genetic_attack_agent:
     def __init__(self, tokenizer, model, device):
-        self.language = 'English'
+        self.language = "English"
         self.pop_size = 10
         self.max_iter_rate = 0.2
         self.tokenizer = tokenizer
@@ -71,7 +93,7 @@ class genetic_attack_agent():
         super().__init__()
 
     def op_sent(self, sent_lst1, op, pos):
-        sent_lst1_at = sent_lst1[:pos] + [op] + sent_lst1[pos + 1:]
+        sent_lst1_at = sent_lst1[:pos] + [op] + sent_lst1[pos + 1 :]
         return sent_lst1_at
 
     def get_ll(self, text):
@@ -85,13 +107,16 @@ class genetic_attack_agent():
         new_x_list = [self.op_sent(sent_cur, w, idx) for w in replace_list]
         logit_lst = []
         for sent_p in new_x_list:
-            logit = self.get_ll(' '.join(sent_p))
+            logit = self.get_ll(" ".join(sent_p))
             logit_lst.append(logit)
         indices = np.argsort(np.array(logit_lst), axis=0)
         return new_x_list[indices[0]]
 
     def generate_population(self, neighbours_lst, w_select_probs, example):
-        return [self.perturb(example, neighbours_lst, w_select_probs, example) for _ in range(self.pop_size)]
+        return [
+            self.perturb(example, neighbours_lst, w_select_probs, example)
+            for _ in range(self.pop_size)
+        ]
 
     def crossover(self, sent1, sent2):
         sent_new = copy.deepcopy(sent1)
@@ -104,11 +129,14 @@ class genetic_attack_agent():
         x_len = w_select_probs.shape[0]
         random_idx = np.random.choice(x_len, size=1, p=w_select_probs)[0]
 
-        while sent_cur[random_idx] != sent_lst1[random_idx] and np.sum(sent_lst1 != sent_cur) < np.sum(
-                np.sign(w_select_probs)):
+        while sent_cur[random_idx] != sent_lst1[random_idx] and np.sum(
+            sent_lst1 != sent_cur
+        ) < np.sum(np.sign(w_select_probs)):
             random_idx = np.random.choice(x_len, size=1, p=w_select_probs)[0]
         replace_list = neighbours_list[random_idx]
-        return self.select_best_replacement(random_idx, sent_cur, replace_list, sent_lst1)
+        return self.select_best_replacement(
+            random_idx, sent_cur, replace_list, sent_lst1
+        )
 
     def random_perturb(self, sent_cur, neighbours_list, w_select_probs):
         x_len = w_select_probs.shape[0]
@@ -148,7 +176,9 @@ class genetic_attack_agent():
 
         neighbours_len = [len(i) for i in neighbours_lst]
         w_select_probs = neighbours_len / np.sum(neighbours_len)
-        pop = self.random_perturb(word_tokenize(eval_example), neighbours_lst, w_select_probs)
+        pop = self.random_perturb(
+            word_tokenize(eval_example), neighbours_lst, w_select_probs
+        )
         return [pop]
 
     def attack(self, eval_example, mapping):
@@ -172,7 +202,9 @@ class genetic_attack_agent():
                 neighbours_lst.append([])
         neighbours_len = [len(i) for i in neighbours_lst]
         w_select_probs = neighbours_len / np.sum(neighbours_len)
-        pop = self.generate_population(neighbours_lst, w_select_probs, word_tokenize(eval_example))
+        pop = self.generate_population(
+            neighbours_lst, w_select_probs, word_tokenize(eval_example)
+        )
         max_iter = 0
         for i in w_select_probs:
             if not i == 0:
@@ -183,7 +215,7 @@ class genetic_attack_agent():
         for i in range(max_iter):
             logit_lst = []
             for sent_p in pop:
-                joined_sent = ' '.join(sent_p)
+                joined_sent = " ".join(sent_p)
                 for punctuation in string.punctuation:
                     joined_sent = joined_sent.replace(" " + punctuation, punctuation)
                 logit = self.get_ll(joined_sent)
@@ -196,7 +228,15 @@ class genetic_attack_agent():
             select_probs /= select_probs.sum()
             p1 = np.random.choice(self.pop_size, size=self.pop_size - 1, p=select_probs)
             p2 = np.random.choice(self.pop_size, size=self.pop_size - 1, p=select_probs)
-            childs = [self.crossover(pop[p1[idx]], pop[p2[idx]]) for idx in range(self.pop_size - 1)]
-            childs = [self.perturb(x, neighbours_lst, w_select_probs, word_tokenize(eval_example)) for x in childs]
+            childs = [
+                self.crossover(pop[p1[idx]], pop[p2[idx]])
+                for idx in range(self.pop_size - 1)
+            ]
+            childs = [
+                self.perturb(
+                    x, neighbours_lst, w_select_probs, word_tokenize(eval_example)
+                )
+                for x in childs
+            ]
             pop = elite + childs
         return elite

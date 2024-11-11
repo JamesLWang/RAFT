@@ -11,9 +11,12 @@ from .utils.symbolic import train_trigram, get_words, vec_functions, scalar_func
 
 MAX_TOKENS = 2047
 
+
 class Ghostbuster(Detector):
     def __init__(self):
-        self.best_features = open("detectors/model/features.txt").read().strip().split("\n")
+        self.best_features = (
+            open("detectors/model/features.txt").read().strip().split("\n")
+        )
 
         # Load davinci tokenizer
         self.enc = tiktoken.encoding_for_model("davinci")
@@ -25,7 +28,7 @@ class Ghostbuster(Detector):
         self.trigram_model = train_trigram()
 
     def run(self, query):
-    # Load data and featurize
+        # Load data and featurize
         doc = query.strip()
         # Strip data to first MAX_TOKENS tokens
         tokens = self.enc.encode(doc)[:MAX_TOKENS]
@@ -36,22 +39,46 @@ class Ghostbuster(Detector):
         # Train trigram
         # print("Loading Trigram...")
 
-        trigram = np.array(score_ngram(doc, self.trigram_model, self.enc.encode, n=3, strip_first=False))
-        unigram = np.array(score_ngram(doc, self.trigram_model.base, self.enc.encode, n=1, strip_first=False))
+        trigram = np.array(
+            score_ngram(
+                doc, self.trigram_model, self.enc.encode, n=3, strip_first=False
+            )
+        )
+        unigram = np.array(
+            score_ngram(
+                doc, self.trigram_model.base, self.enc.encode, n=1, strip_first=False
+            )
+        )
 
-        response = openai.Completion.create(model="babbage-002",
-        prompt="<|endoftext|>" + doc,
-        max_tokens=0,
-        echo=True,
-        logprobs=1)
-        ada = np.array(list(map(lambda x: np.exp(x), response.choices[0].logprobs.token_logprobs[1:])))
+        response = openai.Completion.create(
+            model="babbage-002",
+            prompt="<|endoftext|>" + doc,
+            max_tokens=0,
+            echo=True,
+            logprobs=1,
+        )
+        ada = np.array(
+            list(
+                map(
+                    lambda x: np.exp(x), response.choices[0].logprobs.token_logprobs[1:]
+                )
+            )
+        )
 
-        response = openai.Completion.create(model="davinci-002",
-        prompt="<|endoftext|>" + doc,
-        max_tokens=0,
-        echo=True,
-        logprobs=1)
-        davinci = np.array(list(map(lambda x: np.exp(x), response.choices[0].logprobs.token_logprobs[1:])))
+        response = openai.Completion.create(
+            model="davinci-002",
+            prompt="<|endoftext|>" + doc,
+            max_tokens=0,
+            echo=True,
+            logprobs=1,
+        )
+        davinci = np.array(
+            list(
+                map(
+                    lambda x: np.exp(x), response.choices[0].logprobs.token_logprobs[1:]
+                )
+            )
+        )
 
         subwords = response.choices[0].logprobs.tokens[1:]
         gpt2_map = {"\n": "Ċ", "\t": "ĉ", " ": "Ġ"}
@@ -65,7 +92,7 @@ class Ghostbuster(Detector):
             "davinci-logprobs": davinci,
             "ada-logprobs": ada,
             "trigram-logprobs": trigram,
-            "unigram-logprobs": unigram
+            "unigram-logprobs": unigram,
         }
 
         exp_features = []
@@ -76,7 +103,7 @@ class Ghostbuster(Detector):
 
             for i in range(1, len(exp_tokens)):
                 if exp_tokens[i] in vec_functions:
-                    next_vec = vector_map[exp_tokens[i+1]]
+                    next_vec = vector_map[exp_tokens[i + 1]]
                     new_length = max(len(curr), len(next_vec))
                     curr = np.resize(curr, new_length)
                     next_vec = np.resize(next_vec, new_length)

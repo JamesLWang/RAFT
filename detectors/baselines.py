@@ -16,6 +16,7 @@ def get_perplexity(logits, labels):
 
     return torch.exp(torch.mean(loss)).item()
 
+
 def get_likelihood(logits, labels):
     assert logits.shape[0] == 1
     assert labels.shape[0] == 1
@@ -26,21 +27,27 @@ def get_likelihood(logits, labels):
     log_likelihood = log_probs.gather(dim=-1, index=labels.unsqueeze(-1)).squeeze(-1)
     return log_likelihood.mean().item()
 
+
 def get_rank(logits, labels):
     assert logits.shape[0] == 1
     assert labels.shape[0] == 1
 
     # get rank of each label token in the model's likelihood ordering
     matches = (logits.argsort(-1, descending=True) == labels.unsqueeze(-1)).nonzero()
-    assert matches.shape[1] == 3, f"Expected 3 dimensions in matches tensor, got {matches.shape}"
+    assert (
+        matches.shape[1] == 3
+    ), f"Expected 3 dimensions in matches tensor, got {matches.shape}"
 
     ranks, timesteps = matches[:, -1], matches[:, -2]
 
     # make sure we got exactly one match for each timestep in the sequence
-    assert (timesteps == torch.arange(len(timesteps)).to(timesteps.device)).all(), "Expected one match per timestep"
+    assert (
+        timesteps == torch.arange(len(timesteps)).to(timesteps.device)
+    ).all(), "Expected one match per timestep"
 
-    ranks = ranks.float() + 1 # convert to 1-indexed rank
+    ranks = ranks.float() + 1  # convert to 1-indexed rank
     return -ranks.mean().item()
+
 
 def get_logrank(logits, labels):
     assert logits.shape[0] == 1
@@ -48,16 +55,21 @@ def get_logrank(logits, labels):
 
     # get rank of each label token in the model's likelihood ordering
     matches = (logits.argsort(-1, descending=True) == labels.unsqueeze(-1)).nonzero()
-    assert matches.shape[1] == 3, f"Expected 3 dimensions in matches tensor, got {matches.shape}"
+    assert (
+        matches.shape[1] == 3
+    ), f"Expected 3 dimensions in matches tensor, got {matches.shape}"
 
     ranks, timesteps = matches[:, -1], matches[:, -2]
 
     # make sure we got exactly one match for each timestep in the sequence
-    assert (timesteps == torch.arange(len(timesteps)).to(timesteps.device)).all(), "Expected one match per timestep"
+    assert (
+        timesteps == torch.arange(len(timesteps)).to(timesteps.device)
+    ).all(), "Expected one match per timestep"
 
     ranks = ranks.float() + 1  # convert to 1-indexed rank
     ranks = torch.log(ranks)
     return -ranks.mean().item()
+
 
 def get_entropy(logits, labels):
     assert logits.shape[0] == 1
@@ -70,16 +82,28 @@ def get_entropy(logits, labels):
 
 class Baselines:
     def __init__(self, criterion, scoring_model_name, device="cpu"):
-        self.scoring_tokenizer = load_tokenizer(scoring_model_name, None, cache_dir="../cache")
-        self.scoring_model = load_model(scoring_model_name, device=device, cache_dir="../cache")
+        self.scoring_tokenizer = load_tokenizer(
+            scoring_model_name, None, cache_dir="../cache"
+        )
+        self.scoring_model = load_model(
+            scoring_model_name, device=device, cache_dir="../cache"
+        )
         self.scoring_model.eval()
-        criterion_fns = {"perplexity": get_perplexity, "likelihood": get_likelihood, "rank": get_rank, "logrank": get_logrank, "entropy": get_entropy}
+        criterion_fns = {
+            "perplexity": get_perplexity,
+            "likelihood": get_likelihood,
+            "rank": get_rank,
+            "logrank": get_logrank,
+            "entropy": get_entropy,
+        }
         self.criterion_fn = criterion_fns[criterion]
         self.prob_estimator = ProbEstimator(f"./exp_main/results/*{criterion}*")
         self.device = device
 
     def run(self, query):
-        tokenized = self.scoring_tokenizer(query, return_tensors="pt", padding=True, return_token_type_ids=False).to(self.device)
+        tokenized = self.scoring_tokenizer(
+            query, return_tensors="pt", padding=True, return_token_type_ids=False
+        ).to(self.device)
         labels = tokenized.input_ids[:, 1:]
 
         with torch.no_grad():
@@ -99,4 +123,3 @@ class Baselines:
 
     def crit(self, query: str):
         return self.run(query)[2]
-

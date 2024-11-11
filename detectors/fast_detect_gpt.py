@@ -10,8 +10,17 @@ from .model import load_tokenizer, load_model
 from .prob_estimator import ProbEstimator
 from .detector import Detector
 
+
 class Fast_Detect_GPT(Detector):
-    def __init__(self, reference_model_name, scoring_model_name, dataset, ref_path, device="cuda", cache_dir="../cache"):
+    def __init__(
+        self,
+        reference_model_name,
+        scoring_model_name,
+        dataset,
+        ref_path,
+        device="cuda",
+        cache_dir="../cache",
+    ):
         self.reference_model_name = reference_model_name
         self.scoring_model_name = scoring_model_name
         self.dataset = dataset
@@ -20,12 +29,20 @@ class Fast_Detect_GPT(Detector):
         self.cache_dir = cache_dir
 
         # load model
-        self.scoring_tokenizer = load_tokenizer(self.scoring_model_name, self.dataset, self.cache_dir)
-        self.scoring_model = load_model(self.scoring_model_name, self.device, self.cache_dir)
+        self.scoring_tokenizer = load_tokenizer(
+            self.scoring_model_name, self.dataset, self.cache_dir
+        )
+        self.scoring_model = load_model(
+            self.scoring_model_name, self.device, self.cache_dir
+        )
         self.scoring_model.eval()
         if self.reference_model_name != self.scoring_model_name:
-            self.reference_tokenizer = load_tokenizer(self.reference_model_name, self.dataset, self.cache_dir)
-            self.reference_model = load_model(self.reference_model_name, self.device, self.cache_dir)
+            self.reference_tokenizer = load_tokenizer(
+                self.reference_model_name, self.dataset, self.cache_dir
+            )
+            self.reference_model = load_model(
+                self.reference_model_name, self.device, self.cache_dir
+            )
             self.reference_model.eval()
         # evaluate criterion
         self.criterion_fn = self.get_sampling_discrepancy_analytic
@@ -41,18 +58,26 @@ class Fast_Detect_GPT(Detector):
             logits_ref = logits_ref[:, :, :vocab_size]
             logits_score = logits_score[:, :, :vocab_size]
 
-        labels = labels.unsqueeze(-1) if labels.ndim == logits_score.ndim - 1 else labels
+        labels = (
+            labels.unsqueeze(-1) if labels.ndim == logits_score.ndim - 1 else labels
+        )
         lprobs_score = torch.log_softmax(logits_score, dim=-1)
         probs_ref = torch.softmax(logits_ref, dim=-1)
         log_likelihood = lprobs_score.gather(dim=-1, index=labels).squeeze(-1)
         mean_ref = (probs_ref * lprobs_score).sum(dim=-1)
-        var_ref = (probs_ref * torch.square(lprobs_score)).sum(dim=-1) - torch.square(mean_ref)
-        discrepancy = (log_likelihood.sum(dim=-1) - mean_ref.sum(dim=-1)) / var_ref.sum(dim=-1).sqrt()
+        var_ref = (probs_ref * torch.square(lprobs_score)).sum(dim=-1) - torch.square(
+            mean_ref
+        )
+        discrepancy = (log_likelihood.sum(dim=-1) - mean_ref.sum(dim=-1)) / var_ref.sum(
+            dim=-1
+        ).sqrt()
         discrepancy = discrepancy.mean()
         return discrepancy.item()
 
     def get_tokens(self, query):
-        tokenized = self.scoring_tokenizer(query, return_tensors="pt", padding=True, return_token_type_ids=False).to(self.device)
+        tokenized = self.scoring_tokenizer(
+            query, return_tensors="pt", padding=True, return_token_type_ids=False
+        ).to(self.device)
         input, output = tokenized["input_ids"].detach().cpu().numpy().tolist(), []
         for i in input:
             token = self.scoring_tokenizer.convert_ids_to_tokens(i)
@@ -74,7 +99,9 @@ class Fast_Detect_GPT(Detector):
     # run local inference
     def run(self, query, indexes=None):
         # evaluate query
-        tokenized = self.scoring_tokenizer(query, return_tensors="pt", padding=True, return_token_type_ids=False).to(self.device)
+        tokenized = self.scoring_tokenizer(
+            query, return_tensors="pt", padding=True, return_token_type_ids=False
+        ).to(self.device)
         labels = tokenized.input_ids[:, 1:]
         with torch.no_grad():
             if indexes:
@@ -86,8 +113,15 @@ class Fast_Detect_GPT(Detector):
             if self.reference_model_name == self.scoring_model_name:
                 logits_ref = logits_score
             else:
-                tokenized = self.reference_tokenizer(query, return_tensors="pt", padding=True, return_token_type_ids=False).to(self.device)
-                assert torch.all(tokenized.input_ids[:, 1:] == labels), "Tokenizer is mismatch."
+                tokenized = self.reference_tokenizer(
+                    query,
+                    return_tensors="pt",
+                    padding=True,
+                    return_token_type_ids=False,
+                ).to(self.device)
+                assert torch.all(
+                    tokenized.input_ids[:, 1:] == labels
+                ), "Tokenizer is mismatch."
                 logits_ref = self.reference_model(**tokenized).logits[:, :-1]
             crit = self.criterion_fn(logits_ref, logits_score, labels)
         # estimate the probability of machine generated query
@@ -105,8 +139,11 @@ class Fast_Detect_GPT(Detector):
     def crit(self, query: str, indexes=None):
         return self.run(query, indexes)[2]
 
+
 if __name__ == "__main__":
-    fast_detect_gpt = Fast_Detect_GPT("gpt2-xl", "gpt2-xl", "xsum", "exp_main/results/*sampling_discrepancy.json")
+    fast_detect_gpt = Fast_Detect_GPT(
+        "gpt2-xl", "gpt2-xl", "xsum", "exp_main/results/*sampling_discrepancy.json"
+    )
 
     original = "Hello and welcome to Morgan Stanley’s Investment Community Group. My name is Mike Wilson and I am Morgan Stanley’s Chief U.S. Equity Strategist and Chief Investment Officer. As Chief Investment Officer and Chairman of the Global Investment Committee, I am currently responsible for the economic and statistical analysis of Morgan Stanley’s portfolio data, asset prices and global economic megatrends. To celebrate the 27th anniversary of the new Morgan Stanley Investment Group, we’re bringing you a two-month sharing of investment knowledge and tips from the WhatsApp Group. While everyone is here to profit, I hope you will share Morgan Stanley Group with your friends and join our brokerage team. As a global investment firm, we work together to create long-term value for investors, companies, shareholders, individuals and communities Those who like to invest or want to optimize the allocation of resources to grow their existing wealth, our team of analysts can help you Join us now and get an initial margin worth 200USDT when you register your trading account"
 

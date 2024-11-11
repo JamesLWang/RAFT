@@ -7,30 +7,35 @@ from sklearn.metrics import roc_curve, auc
 from sklearn.neural_network import MLPClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
+
 # from sklearn.metrics import accuracy_score, classification_report, f1_score, roc_auc_score
 
 human_rewrite_dir, GPT_rewrite_dir, GPT_attack_rewrite_dir = None, None, None
 
-with open(human_rewrite_dir, 'r') as f:
+with open(human_rewrite_dir, "r") as f:
     data_human = json.load(f)
 
-with open(GPT_rewrite_dir, 'r') as f:
+with open(GPT_rewrite_dir, "r") as f:
     data_gpt_davinci = json.load(f)
 
-with open(GPT_attack_rewrite_dir, 'r') as f:
+with open(GPT_attack_rewrite_dir, "r") as f:
     data_gpt_davinci_attack = json.load(f)
+
 
 def tokenize_and_normalize(sentence):
     # Tokenization and normalization
     return [word.lower().strip() for word in sentence.split()]
 
+
 def extract_ngrams(tokens, n):
     # Extract n-grams from the list of tokens
-    return [' '.join(tokens[i:i+n]) for i in range(len(tokens) - n + 1)]
+    return [" ".join(tokens[i : i + n]) for i in range(len(tokens) - n + 1)]
+
 
 def common_elements(list1, list2):
     # Find common elements between two lists
     return set(list1) & set(list2)
+
 
 def calculate_sentence_common(sentence1, sentence2):
     tokens1 = tokenize_and_normalize(sentence1)
@@ -52,79 +57,96 @@ def calculate_sentence_common(sentence1, sentence2):
 
     return number_common_hierarchy
 
+
 ngram_num = 4
-def sum_for_list(a,b):
-    return [aa+bb for aa, bb in zip(a,b)]
+
+
+def sum_for_list(a, b):
+    return [aa + bb for aa, bb in zip(a, b)]
+
 
 cutoff_start = 0
 cutoff_end = 6000000
 
+
 def get_data_stat(data_json):
     for idxx, each in enumerate(data_json):
 
-        original = each['input']
+        original = each["input"]
 
-        raw = tokenize_and_normalize(each['input'])
-        if len(raw)<cutoff_start or len(raw)>cutoff_end:
+        raw = tokenize_and_normalize(each["input"])
+        if len(raw) < cutoff_start or len(raw) > cutoff_end:
             continue
 
         statistic_res = {}
         ratio_fzwz = {}
         all_statistic_res = [0 for i in range(ngram_num)]
         cnt = 0
-        whole_combined=''
+        whole_combined = ""
         for pp in each.keys():
-            if pp != 'common_features':
-                whole_combined += (' ' + each[pp])
+            if pp != "common_features":
+                whole_combined += " " + each[pp]
 
                 res = calculate_sentence_common(original, each[pp])
                 statistic_res[pp] = res
                 all_statistic_res = sum_for_list(all_statistic_res, res)
 
-                ratio_fzwz[pp] = [fuzz.ratio(original, each[pp]), fuzz.token_set_ratio(original, each[pp])]
+                ratio_fzwz[pp] = [
+                    fuzz.ratio(original, each[pp]),
+                    fuzz.token_set_ratio(original, each[pp]),
+                ]
                 cnt += 1
 
-        each['fzwz_features'] = ratio_fzwz
-        each['common_features'] = statistic_res
-        each['avg_common_features'] = [a/cnt for a in all_statistic_res]
+        each["fzwz_features"] = ratio_fzwz
+        each["common_features"] = statistic_res
+        each["avg_common_features"] = [a / cnt for a in all_statistic_res]
 
-        each['common_features_ori_vs_allcombined'] = calculate_sentence_common(original, whole_combined)
+        each["common_features_ori_vs_allcombined"] = calculate_sentence_common(
+            original, whole_combined
+        )
 
         if idxx == 400:
             break
 
     return data_json
 
+
 human = get_data_stat(data_human)
 gpt_davinci = get_data_stat(data_gpt_davinci)
 gpt_davinci_attack = get_data_stat(data_gpt_davinci_attack)
 
-def classifier(human, gpt_davinci, gpt_davinci_attack):
 
+def classifier(human, gpt_davinci, gpt_davinci_attack):
     def get_feature_vec(input_json):
         all_list = []
         for idxx, each in enumerate(input_json):
 
             try:
-                raw = tokenize_and_normalize(each['input'])
-                r_len = len(raw)*1.0
+                raw = tokenize_and_normalize(each["input"])
+                r_len = len(raw) * 1.0
             except:
-                import pdb; pdb.set_trace()
-            each_data_fea  = []
+                import pdb
 
-            if r_len ==0:
+                pdb.set_trace()
+            each_data_fea = []
+
+            if r_len == 0:
                 continue
-            if len(raw)<cutoff_start or len(raw)>cutoff_end:
+            if len(raw) < cutoff_start or len(raw) > cutoff_end:
                 continue
 
-            each_data_fea = [ind_d / r_len for ind_d in each['avg_common_features']]
-            for ek in each['common_features'].keys():
-                each_data_fea.extend([ind_d / r_len for ind_d in each['common_features'][ek]])
+            each_data_fea = [ind_d / r_len for ind_d in each["avg_common_features"]]
+            for ek in each["common_features"].keys():
+                each_data_fea.extend(
+                    [ind_d / r_len for ind_d in each["common_features"][ek]]
+                )
 
-            each_data_fea.extend([ind_d / r_len for ind_d in each['common_features_ori_vs_allcombined']])
+            each_data_fea.extend(
+                [ind_d / r_len for ind_d in each["common_features_ori_vs_allcombined"]]
+            )
 
-            for ek in each['fzwz_features'].keys():
-                each_data_fea.extend(each['fzwz_features'][ek])
+            for ek in each["fzwz_features"].keys():
+                each_data_fea.extend(each["fzwz_features"][ek])
 
             all_list.append(np.array(each_data_fea))
 
@@ -140,9 +162,26 @@ def classifier(human, gpt_davinci, gpt_davinci_attack):
     gpt_davinci_attack_all = get_feature_vec(gpt_davinci_attack)
 
     # reblanced
-    h_train, h_test, yh_train, yh_test = train_test_split(human_all, np.zeros(human_all.shape[0]), test_size=0.2, random_state=42)
-    davinci_g_train, davinci_g_test, davinci_yg_train, davinci_yg_test = train_test_split(gpt_davinci_all, np.ones(gpt_davinci_all.shape[0]), test_size=0.2, random_state=42)
-    _, davinci_attack_g_test, _, davinci_attack_yg_test = train_test_split(gpt_davinci_attack_all, np.ones(gpt_davinci_attack_all.shape[0]), test_size=0.2, random_state=42)
+    h_train, h_test, yh_train, yh_test = train_test_split(
+        human_all, np.zeros(human_all.shape[0]), test_size=0.2, random_state=42
+    )
+    (
+        davinci_g_train,
+        davinci_g_test,
+        davinci_yg_train,
+        davinci_yg_test,
+    ) = train_test_split(
+        gpt_davinci_all,
+        np.ones(gpt_davinci_all.shape[0]),
+        test_size=0.2,
+        random_state=42,
+    )
+    _, davinci_attack_g_test, _, davinci_attack_yg_test = train_test_split(
+        gpt_davinci_attack_all,
+        np.ones(gpt_davinci_attack_all.shape[0]),
+        test_size=0.2,
+        random_state=42,
+    )
 
     X_train = np.concatenate((davinci_g_train, h_train), axis=0)
     y_train = np.concatenate((davinci_yg_train, yh_train), axis=0)
@@ -157,7 +196,13 @@ def classifier(human, gpt_davinci, gpt_davinci_attack):
     X_test = scaler.transform(X_test)
     X_attack = scaler.transform(X_attack)
 
-    clf = MLPClassifier(hidden_layer_sizes=(10,), max_iter=1000, activation='relu', solver='adam', random_state=42)
+    clf = MLPClassifier(
+        hidden_layer_sizes=(10,),
+        max_iter=1000,
+        activation="relu",
+        solver="adam",
+        random_state=42,
+    )
     clf.fit(X_train, y_train)
     y_pred = clf.predict(X_test)
     y_attack_pred = clf.predict(X_attack)
@@ -180,5 +225,5 @@ def classifier(human, gpt_davinci, gpt_davinci_attack):
 
     print("attack AUROC: ", roc_auc, "DR: ", detection_rate)
 
-classifier(human, gpt_davinci, gpt_davinci_attack)
 
+classifier(human, gpt_davinci, gpt_davinci_attack)
