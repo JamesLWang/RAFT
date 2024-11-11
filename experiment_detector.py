@@ -7,10 +7,9 @@ from openai import OpenAI
 import argparse
 import numpy as np
 from nltk.tokenize import word_tokenize
-openai.api_key="YOUR OPENAI API KEY"
 
 # from roberta_gpt2_detector_large import GPT2RobertaDetector
-from detectors.roberta_gpt2_detector_base import GPT2RobertaDetector
+from detectors.roberta_gpt2_detector import GPT2RobertaDetector
 
 # import sys
 # sys.path.append('../ghostbuster')
@@ -104,6 +103,8 @@ class Experiment:
         if not os.path.exists(path):
             os.mkdir(path)
         data, originals, results, original_crits, result_crits = self.load_data(data_file), [], [], [], []
+        import pdb
+        pdb.breakpoint()
         n_samples = len(data["sampled"])
 
         if resume_from != 0:

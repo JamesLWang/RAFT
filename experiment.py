@@ -2,24 +2,28 @@ import os
 import re
 import json
 import time
-import torch
 import uuid
 import datetime
 import argparse
 import numpy as np
-import nltk
 from tqdm import tqdm
-from collections import defaultdict
+
+import torch
+import glob
+import nltk
 from nltk.tokenize import word_tokenize
-from gensim.models import KeyedVectors
+import logging
+import pandas as pd
 from openai import OpenAI
 
-from metrics.auroc import AUROC
+from gensim.models import KeyedVectors
+
 from detectors.baselines import Baselines
 from detectors.ghostbuster import Ghostbuster
 from detectors.detect_gpt import Detect_GPT
 from detectors.fast_detect_gpt import Fast_Detect_GPT
-from detectors.roberta_gpt2_detector_base import GPT2RobertaDetector
+from detectors.roberta_gpt2_detector import GPT2RobertaDetector
+
 
 client = OpenAI(api_key='YOUR OPENAI API KEY')
 
@@ -29,29 +33,32 @@ def openai_backoff(**kwargs):
         try:
             return client.chat.completions.create(**kwargs)
         except Exception:
-            print(f"Waiting for {wait_time} seconds")
+            logging.info(f"Waiting for {wait_time} seconds")
             time.sleep(wait_time)
             wait_time *= 2
             retries += 1
 
 class Experiment:
-    def __init__(self, dataset, data_generator_llm, proxy_model, detector, output_path, proxy_model_device, target_detector_device, mask_pct, dataset_dir, device_aux=None):
+    def __init__(self, dataset, data_generator_llm, proxy_model, detector, output_path, proxy_model_device, target_detector_device, mask_pct, top_k, candidate_generation, dataset_dir):
         self.dataset = dataset # Used
         self.data_generator_llm = data_generator_llm # Used
-        self.proxy_model = proxy_model
+        self.proxy_model_str = proxy_model
         self.mask_pct = mask_pct
         self.output_path = output_path
         self.dataset_dir = dataset_dir # Used
         self.detector = detector
         self.target_detector_device = target_detector_device
         self.proxy_model_device = proxy_model_device
-        self.device_aux = device_aux
 
         self.proxy_model_tokenizer = None
         self.proxy_model = None
+        self.top_k = top_k
 
-        # [TODO] Implement as lazy loading
-        self.word_vectors = KeyedVectors.load_word2vec_format("./assets/GoogleNews-vectors-negative300.bin.gz", binary=True)#, limit=500000)
+        self.proxy_model_type = "detection" if self.proxy_model_str in ["roberta-base", "roberta-large"] else "next-token-generation"
+
+        self.candidate_generation = candidate_generation
+        if self.candidate_generation == "word2vec":
+            self.word_vectors = KeyedVectors.load_word2vec_format("./assets/GoogleNews-vectors-negative300.bin.gz", binary=True)#, limit=500000)
 
     def filter_punctuation(string):
         pattern = r'^[\W_]+|[\W_]+$'
@@ -129,7 +136,7 @@ class Experiment:
         if self.data_generator_llm not in ['gpt-3.5-turbo', 'mixtral-8x7B-Instruct', 'llama-3-70b-chat']:
             raise ValueError("Selected Data Generator LLM is invalid. Valid choices: 'gpt-3.5-turbo', 'mixtral-8x7B-Instruct', 'llama-3-70b-chat'")
         
-        file_name = os.path.join(self.dataset_dir, self.dataset,f"{self.dataset}_{self.data_generator_llm}.raw_data.json")
+        file_name = os.path.join(self.dataset_dir ,f"{self.dataset}_{self.data_generator_llm}.raw_data.json")
         if os.path.exists(file_name):
             self.data = self.load_data(file_name)
             print(f"Dataset {self.dataset} generated with {self.data_generator_llm} loaded successfully!")
@@ -146,21 +153,21 @@ class Experiment:
             'roberta-base-detector': './assets/detector-base.pt',
             'roberta-large-detector': './assets/detector-large.pt'
         }
-        if self.proxy_model in proxy_model_map.keys():
-            self.proxy_model = GPT2RobertaDetector(model_name=proxy_model_map[self.proxy_model], device=self.proxy_model_device, checkpoint=proxy_model_checkpoint_map[self.proxy_model])
+        if self.proxy_model_str in proxy_model_map.keys():
+            self.proxy_model = GPT2RobertaDetector(model_name=proxy_model_map[self.proxy_model_str], device=self.proxy_model_device, checkpoint=proxy_model_checkpoint_map[self.proxy_model_str])
         elif self.proxy_model == 'gpt2':
             from transformers import GPT2LMHeadModel, GPT2Tokenizer
-            self.proxy_model_tokenizer = GPT2Tokenizer.from_pretrained(self.proxy_model)
-            self.proxy_model = GPT2LMHeadModel.from_pretrained(self.proxy_model)
+            self.proxy_model_tokenizer = GPT2Tokenizer.from_pretrained(self.proxy_model_str)
+            self.proxy_model = GPT2LMHeadModel.from_pretrained(self.proxy_model_str)
         else:
             from transformers import AutoTokenizer, AutoModelForCausalLM
-            self.proxy_model_tokenizer = AutoTokenizer.from_pretrained(self.proxy_model, torch_dtype=torch.float16)
-            self.proxy_model = AutoModelForCausalLM.from_pretrained(self.proxy_model, torch_dtype=torch.float16)
+            self.proxy_model_tokenizer = AutoTokenizer.from_pretrained(self.proxy_model_str, torch_dtype=torch.float16)
+            self.proxy_model = AutoModelForCausalLM.from_pretrained(self.proxy_model_str, torch_dtype=torch.float16)
         
         if self.proxy_model_device != 'cpu':
             self.proxy_model.to(self.proxy_model_device)
-            print(f"{self.proxy_model} model pushed to {self.proxy_model_device}")
-        print(f"{self.proxy_model} model and tokenizer (if applicable) loaded successfully!")
+            print(f"{self.proxy_model_str} model pushed to {self.proxy_model_device}")
+        print(f"{self.proxy_model_str} model and tokenizer (if applicable) loaded successfully!")
 
     def load_detector(self) -> None:
         if self.detector == 'dgpt':
@@ -177,26 +184,265 @@ class Experiment:
             self.detector_model = GPT2RobertaDetector('roberta-large', self.target_detector_device, './assets/detector-large.pt')
 
     def create_experiment(self) -> None:
-        pass
+        current_date = datetime.datetime.now()
+        formatted_date = current_date.strftime("%Y-%m-%d")
+
+        self.experiment_name = f"{self.dataset}_{self.data_generator_llm}_{self.proxy_model_str.replace('/','')}_{self.detector}_{formatted_date}_{str(uuid.uuid4()).split('-')[0]}"
+        self.experiment_path = os.path.join(self.output_path, self.experiment_name)
+        print(f"Creating experiment {self.experiment_name}")
+        check_path = os.path.join(self.output_path, f"{self.dataset}_{self.data_generator_llm}_{self.proxy_model_str.replace('/','')}_{self.detector}_*)")
+        if len(sorted(glob.glob(check_path))) > 0:
+            logging.warning("Duplicated experiment detected")
+
+        os.makedirs(self.experiment_path)
+
+        self.config = {
+            "dataset": self.dataset,
+            "data_generator_llm": self.data_generator_llm,
+            "proxy_model": self.proxy_model_str,
+            "proxy_type": self.proxy_model_type,
+            "mask_pct": self.mask_pct,
+            "detector": self.detector,
+            "output_path": self.output_path,
+            "dataset_dir": self.dataset_dir,
+            "timestamp_created": str(current_date),
+            "candidate_generation": self.candidate_generation,
+            "experiment_name": self.experiment_name,
+            "experiment_path": self.experiment_path
+        }
+
+        with open(os.path.join(self.experiment_path, 'config.json'), 'w') as f:
+            json.dump(self.config, f)
+
+
+        logging.basicConfig(
+            filename=os.path.join(self.experiment_path, 'experiment.log'), 
+            filemode='w', 
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        )
+        self.logger = logging.getLogger(self.experiment_name)
+        self.logger.setLevel(logging.DEBUG)
     
     def raft(self) -> None:
-        pass
+        data = self.data
 
-    def analyze_results(self) -> None:
-        pass
+        # originals / results -> Probability of LLM Generated
+        # original_crits / result_crits -> Likelihood of LLM Generated
+        originals, results, original_crits, result_crits = [], [], [], []
+        original_texts, result_texts = [], []
+
+        n_samples = len(data["sampled"])
+
+        for index in tqdm(range(n_samples)):
+            paragraph = data["sampled"][index]
+            words = paragraph.split()
+            len_paragraph = len(words)
+            ranks = {}
+
+            # Proxy scoring model for determining priority of words to replace
+            if self.proxy_model_type == "next-token-generation":
+                tokens_id = self.proxy_model_tokenizer.encode(paragraph,add_special_tokens=True)
+                logits = self.proxy_model(torch.tensor(tokens_id).unsqueeze(0).to(self.proxy_model_device)).logits
+                probs = torch.nn.functional.softmax(logits, dim=-1)
+                ranks = [(0,-1,'[HEAD]', 0.0)]
+                for i in range(1, len(probs[0])):
+                    token_id = tokens_id[i]
+                    ranks.append((i, token_id, self.proxy_model_tokenizer.convert_ids_to_tokens(token_id), probs[0][i-1][token_id].item())) # append as (token position, token id, token, token_prob)
+                ranks.sort(key=lambda x: x[3])
+                percent_masked = self.mask_pct
+                num_masks = int(len(probs[0]) * percent_masked)
+                ranks_filter = list(filter(lambda x: "Ġ" in x[2], ranks))
+                for rank_filter in ranks_filter:
+                    if rank_filter[2].replace("Ġ", "") == "":
+                        ranks_filter.remove(rank_filter)
+                sorted_keys = [x[0] for x in ranks_filter]
+                sorted_words = [x[2].replace("Ġ", "") for x in ranks_filter]
+                
+            if self.proxy_model_type == "detection":    
+                words_original = words.copy()
+                for i in range(len_paragraph):
+                    paragraph_new = ' '.join(words[:i] + ['=', words[i], '='] + words[i+1:])
+                    tokens = self.proxy_model.get_tokens(paragraph_new)
+                    if tokens[2] == '=':
+                        tokens[2] = "Ġ="
+                    start_end = [i for i, x in enumerate(tokens) if x == "Ġ="]
+                    highlight_indexes = [i for i in range(start_end[0], start_end[1]-1)]
+                    ranks[i] = self.proxy_model.llm_likelihood(paragraph, highlight_indexes)
+
+                sorted_keys = [k for k, v in sorted(ranks.items(), key=lambda item: item[1])]
+                sorted_words = [words[k] for k in sorted_keys]
+            
+            mask_keys, num_masks = [], int(len_paragraph * self.mask_pct)
+
+            if self.proxy_model_type == "next-token-generation":
+                ctr = 0
+                candidates = []
+                while ctr < num_masks:
+                    token_pos, token_id, token, prob = ranks_filter.pop()
+                    candidates.append((token_pos, token_id, token, prob))
+                    ctr += 1
+
+                changes = 0
+                best_words = []
+                for candidate in candidates:
+                    token_pos, token_id, token, prob  = candidate
+                    word = self.proxy_model_tokenizer.decode(token_id).strip()
+                    min_score, best_word = self.detector_model.crit(paragraph), word
+
+                    word_to_replace = self.proxy_model_tokenizer.decode(tokens_id[token_pos]).strip()
+                    logging.info(f'Word to replace: {word_to_replace}')
+                    paragraph_query = self.proxy_model_tokenizer.decode(self.flatten(tokens_id[:token_pos])) + f'[{self.proxy_model_tokenizer.decode(tokens_id[token_pos]).strip()}]' + self.proxy_model_tokenizer.decode(self.flatten(tokens_id[token_pos+1:]))
+
+                    similar_words = self.predict_words(paragraph_query, self.top_k)
+                    logging.info(f'Returned candidate words: {similar_words}')
+                    for similar_word in similar_words:
+                        if self.are_same_pos(word_to_replace, similar_word):
+                            paragraph_temp = self.proxy_model_tokenizer.decode(self.flatten(tokens_id[:token_pos])) + ' ' + similar_word + ' ' + self.proxy_model_tokenizer.decode(self.flatten(tokens_id[token_pos+1:]))
+                            score = self.detector_model.crit(paragraph_temp)
+                            if score <= min_score:
+                                best_word = similar_word
+                                min_score = score
+                                changes += 1
+
+                    best_words.append(best_word)
+                    if best_word == word:
+                        logging.info(f'Word {word} not replaced')
+                        continue
+                    else:
+                        print(f'Word {word_to_replace} replaced with {best_word}')
+                        old_val = tokens_id[token_pos]
+                        tokens_id[token_pos] = self.proxy_model_tokenizer.encode(' ' + best_word.strip(),add_special_tokens=True)
+                        # print(token_pos, token_id, token, prob, similar_words)
+                        # print(f"Replaced token at {token_pos} with value of {token} to {best_word[0]}. New token value: {tokens_id[token_pos]} | Old Value: {old_val}")
+
+                paragraph_final = self.proxy_model_tokenizer.decode(self.flatten(tokens_id))
+
+                '''
+                Result reporting
+                '''
+                original_texts.append(paragraph)
+                result_texts.append(paragraph_final)
+                if self.proxy_model_str == "ghostbuster":
+                    original_crit = self.tester.crit(paragraph)
+                    original = original_crit
+                    result_crit = self.tester.crit(paragraph_final)
+                    result = result_crit
+                else:
+                    original, _, original_crit = self.tester.run(paragraph)
+                    result, _, result_crit = self.tester.run(paragraph_final)
+                originals.append(original)
+                results.append(result)
+                original_crits.append(original_crit)
+                result_crits.append(result_crit)
+
+                output_json = {
+                    "original": paragraph,
+                    "sampled": paragraph_final,
+                    "replacement_keys": [(x[0],x[1],x[2]) for x in candidates],
+                    "original_crit": original_crit,
+                    "sampled_crit": result_crit,
+                    "original_llm_likelihood": original,
+                    "sampled_llm_likelihood": result
+                }
+                with open(os.path.join(self.experiment_path, f"{self.dataset}_{index}.json"), 'w') as output_file:
+                    json.dump(output_json, output_file)
+                result_json = {
+                    "mean_original": np.mean(originals),
+                    "mean_result": np.mean(results),
+                    "originals": originals,
+                    "results": results,
+                    "original_crits": original_crits,
+                    "result_crits": result_crits
+                }
+
+                with open(os.path.join(self.experiment_path, "results.json"), 'w') as result_file:
+                    json.dump(result_json, result_file)
+
+
+                
+            if self.proxy_model_type == "detection":
+                for key in sorted_keys:
+                    if num_masks == 0:
+                        break
+                    left_punctuation, right_punctuation, word_to_replace = self.filter_punctuation(words[key])
+                    paragraph_query = " ".join(words[:key] + [left_punctuation, f"[{word_to_replace}]", right_punctuation] + words[key+1:])
+                    predicted_words = self.predict_words(paragraph_query, self.top_k)
+                    min_score, word_best, replaced = float('inf'), words[key], False
+                    for predicted_word in predicted_words:
+                        if predicted_word not in ['', ' ', word_to_replace] and self.are_same_pos(word_to_replace, predicted_word):
+                            predicted_word = left_punctuation + predicted_word + right_punctuation
+                            paragraph_new = ' '.join(words[:key] + [predicted_word] + words[key+1:])
+                            score = self.tester.crit(paragraph_new)
+                            if score <= min_score:
+                                word_best = predicted_word
+                                min_score = score
+                                replaced = True
+                    if replaced:
+                        num_masks -= 1
+                        mask_keys.append(key)
+                        words[key] = word_best
+                paragraph_final = " ".join(words)
+
+                '''
+                Result reporting
+                '''
+                original_texts.append(paragraph)
+                result_texts.append(paragraph_final)
+
+                if self.proxy_model_str == "ghostbuster":
+                    original_crit = self.tester.crit(paragraph)
+                    original = original_crit
+                    result_crit = self.tester.crit(paragraph_final)
+                    result = result_crit
+                else:
+                    original, _, original_crit = self.tester.run(paragraph)
+                    result, _, result_crit = self.tester.run(paragraph_final)
+                
+                originals.append(original)
+                results.append(result)
+                original_crits.append(original_crit)
+                result_crits.append(result_crit)
+            
+                output_json = {
+                    "original": paragraph,
+                    "sampled": paragraph_final,
+                    "replacement_keys": mask_keys,
+                    "original_crit": original_crit,
+                    "sampled_crit": result_crit,
+                    "original_llm_likelihood": original,
+                    "sampled_llm_likelihood": result
+                }
+                with open(os.path.join(self.experiment_path, f"{self.dataset}_{index}.json"), 'w') as output_file:
+                    json.dump(output_json, output_file)
+
+                result_json = {
+                    "mean_original": np.mean(originals),
+                    "mean_result": np.mean(results),
+                    "originals": originals,
+                    "results": results,
+                    "original_crits": original_crits,
+                    "result_crits": result_crits
+                }
+
+                with open(os.path.join(self.experiment_path, "results.json"), 'w') as result_file:
+                    json.dump(result_json, result_file)
+
+        df = pd.DataFrame({
+            "original_text": original_texts,
+            "result_text": result_texts,
+            "original_crit": original_crits,
+            "result_crit": result_crits,
+            "original_llm_likelihood": originals,
+            "result_llm_likelihood": results
+        }).to_csv("results.csv", index=False)
 
     def run(self) -> None:
         self.load_dataset()
         self.load_proxy_model()
         self.load_detector()
-
-        self.create_experiment() # TODO
-        self.raft() # TODO
-        self.analyze_results() # TODO
-
-
-
-
+        self.create_experiment()
+        self.raft()
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -204,16 +450,40 @@ def get_args():
     parser.add_argument('--mask_pct', default=0.1)
     parser.add_argument('--top_k', default=15)
     parser.add_argument('--data_generator_llm', choices=['gpt-3.5-turbo','mixtral-8x7B-Instruct', 'llama-3-70b-chat'], default='gpt-3.5-turbo')
-    parser.add_argument('--proxy_model', choices=['roberta-base-detector', 'roberta-large-detector', 'gpt2', 'opt-2.7b', 'neo-2.7b', 'gpt-j-6b'], default='roberta-base-detector')
-    parser.add_argument('--detector', choices=['logprob','logrank','dgpt','fdgpt','ghostbuster', 'roberta-base','roberta-large'], default='roberta-base')
+    parser.add_argument('--proxy_model', choices=['roberta-base-detector', 'roberta-large-detector', 'gpt2', 'opt-2.7b', 'neo-2.7b', 'gpt-j-6b'], default='gpt2')
+    parser.add_argument('--detector', choices=['logprob','logrank','dgpt','fdgpt','ghostbuster', 'roberta-base','roberta-large'], default='logrank')
     parser.add_argument('--output_path', default='./experiments/')
-    parser.add_argument('--proxy_model_device', default='cuda')
-    parser.add_argument('--target_detector_device', default='cuda')
-    parser.add_argument('--dataset_dir', default='./datasets/')
+    parser.add_argument('--proxy_model_device', default='cpu')
+    parser.add_argument('--target_detector_device', default='cpu')
+    parser.add_argument('--candidate_generation', choices=['gpt-3.5-turbo', 'word2vec'], default='gpt-3.5-turbo')
+    parser.add_argument('--dataset_dir', default='./exp_gpt3to4/data/')
     return parser.parse_args()
 
 print("Done Loading!")
 
 if __name__ == "__main__":
     args = get_args()
+    print("Running test...")
+    print("Initializing")
+    experiment = Experiment(args.dataset,
+                            args.data_generator_llm,
+                            args.proxy_model,
+                            args.detector,
+                            args.output_path,
+                            args.proxy_model_device, 
+                            args.target_detector_device, 
+                            args.mask_pct,
+                            args.top_k,
+                            args.candidate_generation, 
+                            args.dataset_dir)
+    print("Load Dataset")
+    experiment.load_dataset()
+    print("Load Proxy Model")
+    experiment.load_proxy_model()
+    print("Load detector")
+    experiment.load_detector()
+    print("Create experiment config")
+    experiment.create_experiment()
+    print("Run")
+    experiment.run()
     print("Done!")
