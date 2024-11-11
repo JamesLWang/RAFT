@@ -10,7 +10,7 @@ class GPT2RobertaDetector(Detector):
                  model_name='roberta-large',
                  device='cpu',
                  checkpoint='./assets/detector-large.pt'):
-        checkpoint_weights = torch.load(checkpoint, map_location='cpu')
+        checkpoint_weights = torch.load(checkpoint, map_location=device)
 
         self.model = RobertaForSequenceClassification.from_pretrained(model_name)
         self.tokenizer = RobertaTokenizer.from_pretrained(model_name)

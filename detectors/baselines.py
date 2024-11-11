@@ -69,14 +69,14 @@ def get_entropy(logits, labels):
 
 
 class Baselines:
-    def __init__(self, criterion, scoring_model_name):
+    def __init__(self, criterion, scoring_model_name, device="cpu"):
         self.scoring_tokenizer = load_tokenizer(scoring_model_name, None, cache_dir="../cache")
-        self.scoring_model = load_model(scoring_model_name, device="cpu", cache_dir="../cache")
+        self.scoring_model = load_model(scoring_model_name, device=device, cache_dir="../cache")
         self.scoring_model.eval()
         criterion_fns = {"perplexity": get_perplexity, "likelihood": get_likelihood, "rank": get_rank, "logrank": get_logrank, "entropy": get_entropy}
         self.criterion_fn = criterion_fns[criterion]
         self.prob_estimator = ProbEstimator(f"./exp_main/results/*{criterion}*")
-        self.device = "cpu"
+        self.device = device
 
     def run(self, query):
         tokenized = self.scoring_tokenizer(query, return_tensors="pt", padding=True, return_token_type_ids=False).to(self.device)
