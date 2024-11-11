@@ -11,6 +11,10 @@ Setup Python environment:
 ```
 conda env create -f environment.yml
 ```
+or
+```
+pip install -r requirements.txt
+```
 
 Create `./assets` directory and download the following files:
 
