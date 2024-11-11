@@ -7,12 +7,22 @@ Code from the paper [RAFT: Realistic Attacks to Fool Text Detectors](https://arx
 If you use this code, please consider citing the paper as:
 
 ```
-@inproceedings{wang2024raft,
-  title={RAFT: Realistic Attacks to Fool Text Detectors},
-  author={Wang, James and Li, Ran and Yang, Junfeng and Mao, Chengzhi},
-  booktitle={Proceedings of the 2024 Conference on Empirical Methods in Natural Language Processing},
-  pages={},
-  year={2024}
+inproceedings{wang-etal-2024-raft,
+    title = "{RAFT}: Realistic Attacks to Fool Text Detectors",
+    author = "Wang, James Liyuan  and
+      Li, Ran  and
+      Yang, Junfeng  and
+      Mao, Chengzhi",
+    editor = "Al-Onaizan, Yaser  and
+      Bansal, Mohit  and
+      Chen, Yun-Nung",
+    booktitle = "Proceedings of the 2024 Conference on Empirical Methods in Natural Language Processing",
+    month = nov,
+    year = "2024",
+    address = "Miami, Florida, USA",
+    publisher = "Association for Computational Linguistics",
+    url = "https://aclanthology.org/2024.emnlp-main.939",
+    pages = "16923--16936",
 }
 ```
 

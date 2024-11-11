@@ -31,10 +31,9 @@ client = OpenAI(api_key='None')
 
 def openai_backoff(**kwargs):
     retries, wait_time = 0, 10
-    return client.chat.completions.create(**kwargs)
     while retries < 10:
         try:
-            return openai.ChatCompletion.create(**kwargs)
+            return client.chat.completions.create(**kwargs)
         except:
             print(f"Waiting for {wait_time} seconds")
             time.sleep(wait_time)

@@ -3,7 +3,7 @@ import re
 import json
 import nltk
 import time
-import openai
+from openai import OpenAI
 import argparse
 import numpy as np
 from nltk.tokenize import word_tokenize
@@ -22,11 +22,13 @@ from detectors.fast_detect_gpt import Fast_Detect_GPT
 # from metrics import get_roc_metrics, get_precision_recall_metrics
 
 
+client = OpenAI(api_key='None')
+
 def openai_backoff(**kwargs):
     retries, wait_time = 0, 10
     while retries < 10:
         try:
-            return openai.ChatCompletion.create(**kwargs)
+            return client.chat.completions.create(**kwargs)
         except:
             print(f"Waiting for {wait_time} seconds")
             time.sleep(wait_time)
@@ -81,12 +83,11 @@ class Experiment:
         return pos1 == pos2
 
     def generate_text(self, query):
-        # response = openai_backoff(
-        #                 model="gpt-3.5-turbo",
-        #                 messages=[{"role": "user", "content": query}]
-        #             )
-        # return response["choices"][0]["message"]["content"]
-        return "hello"
+        response = openai_backoff(
+                        model="gpt-3.5-turbo",
+                        messages=[{"role": "user", "content": query}]
+                    )
+        return response["choices"][0]["message"]["content"]
 
     def predict_words(self, paragraph, top_k):
         query = f"""Given some input paragraph, we have highlighted a word using brackets. List {top_k} alternative words for it that ensure grammar correctness and semantic fluency. Output words only.\n{paragraph}"""
