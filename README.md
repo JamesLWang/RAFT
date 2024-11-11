@@ -4,28 +4,6 @@
 
 Code from the paper [RAFT: Realistic Attacks to Fool Text Detectors](https://arxiv.org/abs/2410.03658). 
 
-If you use this code, please consider citing the paper as:
-
-```
-inproceedings{wang-etal-2024-raft,
-    title = "{RAFT}: Realistic Attacks to Fool Text Detectors",
-    author = "Wang, James Liyuan  and
-      Li, Ran  and
-      Yang, Junfeng  and
-      Mao, Chengzhi",
-    editor = "Al-Onaizan, Yaser  and
-      Bansal, Mohit  and
-      Chen, Yun-Nung",
-    booktitle = "Proceedings of the 2024 Conference on Empirical Methods in Natural Language Processing",
-    month = nov,
-    year = "2024",
-    address = "Miami, Florida, USA",
-    publisher = "Association for Computational Linguistics",
-    url = "https://aclanthology.org/2024.emnlp-main.939",
-    pages = "16923--16936",
-}
-```
-
 ## Setup
 
 Setup Python environment:
@@ -68,3 +46,26 @@ Run `python raidar_llm_detect/rewrite.py` to perform rewrite for human, AI, and 
 
 ## Datasets
 We evaluated our framework on three datasets: [XSum](https://aclanthology.org/D18-1206.pdf), [SQuAD](https://aclanthology.org/D16-1264.pdf), and [Abstract](https://arxiv.org/pdf/2401.12970). We used [Bao et al.](https://github.com/baoguangsheng/fast-detect-gpt/tree/main/exp_main/data)'s versions of LLM-generated texts for XSum and SQuAD, and follow the same steps as them and DetectGPT to generate LLM-generated texts for Abstract. All datasets used can be found in the `./datasets` directory.
+
+
+If you use this code, please consider citing the paper as:
+
+```
+inproceedings{wang-etal-2024-raft,
+    title = "{RAFT}: Realistic Attacks to Fool Text Detectors",
+    author = "Wang, James Liyuan  and
+      Li, Ran  and
+      Yang, Junfeng  and
+      Mao, Chengzhi",
+    editor = "Al-Onaizan, Yaser  and
+      Bansal, Mohit  and
+      Chen, Yun-Nung",
+    booktitle = "Proceedings of the 2024 Conference on Empirical Methods in Natural Language Processing",
+    month = nov,
+    year = "2024",
+    address = "Miami, Florida, USA",
+    publisher = "Association for Computational Linguistics",
+    url = "https://aclanthology.org/2024.emnlp-main.939",
+    pages = "16923--16936",
+}
+```
