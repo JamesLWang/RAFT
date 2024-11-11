@@ -47,6 +47,7 @@ Run `python raidar_llm_detect/rewrite.py` to perform rewrite for human, AI, and 
 ## Datasets
 We evaluated our framework on three datasets: [XSum](https://aclanthology.org/D18-1206.pdf), [SQuAD](https://aclanthology.org/D16-1264.pdf), and [Abstract](https://arxiv.org/pdf/2401.12970). We used [Bao et al.](https://github.com/baoguangsheng/fast-detect-gpt/tree/main/exp_main/data)'s versions of LLM-generated texts for XSum and SQuAD, and follow the same steps as them and DetectGPT to generate LLM-generated texts for Abstract. All datasets used can be found in the `./datasets` directory.
 
+---
 
 If you use this code, please consider citing the paper as:
 
